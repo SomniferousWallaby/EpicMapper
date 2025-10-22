@@ -1,5 +1,5 @@
 // adminUsers.js
-const adminEmails = ['thomas@arryved.com'];
+const adminEmails = ['commaseparatedemails'];
 
 module.exports = {
   adminEmails
