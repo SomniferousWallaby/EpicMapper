@@ -1,6 +1,6 @@
-# Jiragraph
+# Epic Mapper
 
-Jiragraph is a web-based tool designed to map the complex dependencies of issues within one or more Jira epics. It provides interactive graph and Gantt chart views to help teams understand task relationships, identify blockers, and forecast project completion timelines based on historical developer velocity.
+Epic Mapper is a web-based tool designed to map the complex dependencies of issues within one or more Jira epics. It provides interactive graph and Gantt chart views to help teams understand task relationships, identify blockers, and forecast project completion timelines based on historical developer velocity.
 
 
 ## Features
