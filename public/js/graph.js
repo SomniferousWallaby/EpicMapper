@@ -65,7 +65,7 @@ export function renderGraph(
 
     simulation = d3.forceSimulation(graph.nodes)
         .force("link", d3.forceLink(graph.links).id(d => d.id).distance(100))
-        .force("charge", d3.forceManyBody().strength(-50))
+        .force("charge", d3.forceManyBody().strength(-20))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .force("collide", d3.forceCollide().radius(d => radiusScale(d.storyPoints) + 5));
     if (typeof handleSimulation === 'function') {
@@ -171,23 +171,20 @@ export function updateGraphSelection(currentGraphData, selectedNodeId) {
     if (!currentGraphData) return;
 
     const svg = d3.select("#graph-svg");
-    const node = svg.selectAll(".nodes g"); // Re-select the nodes based on the class we assigned
+    const node = svg.selectAll(".nodes g");
     
-    if (node.empty()) return; // Graph hasn't been rendered yet, nothing to update
+    if (node.empty()) return; 
 
-    // Recompute blocked nodes in case the graph data changed
     const blockedNodeIds = new Set(
         currentGraphData.links
             .filter(link => link.isBlocking)
             .map(link => link.target.id || link.target)
     );
 
-    // Update circle styles
     node.selectAll("circle")
         .attr("stroke", n => n.id === selectedNodeId ? "#3B82F6" : (!blockedNodeIds.has(n.id) ? '#22C55E' : '#E5E7EB'))
         .attr("stroke-width", n => (n.id === selectedNodeId || !blockedNodeIds.has(n.id)) ? 3 : 1.5);
 
-    // Update text styles
     node.selectAll("text")
         .classed("node-label-selected", n => n.id === selectedNodeId);
 }

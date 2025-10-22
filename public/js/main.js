@@ -172,12 +172,13 @@ function updateIssueDetailsPanel(nodeId, graphData, jiraUrl) {
         detailLinksList.innerHTML = relatedLinks.map(link => {
             let text = '';
             if (link.source.id === nodeId) {
-                text = `${link.type} <a href="#" data-link-id="${link.target.id}" class="text-indigo-600 hover:underline">${link.target.id}</a>`;
+                text = `${link.type} <a href="${jiraUrl}/browse/${link.target.id}" target="_blank" class="text-indigo-600 hover:underline">${link.target.id}</a>`;
             } else {
                 let inwardType = `is related to`;
                 if (link.type.toLowerCase() === 'blocks') inwardType = 'is blocked by';
                 if (link.type.toLowerCase() === 'clones') inwardType = 'is cloned by';
-                text = `${inwardType} <a href="#" data-link-id="${link.source.id}" class="text-indigo-600 hover:underline">${link.source.id}</a>`;
+                
+                text = `${inwardType} <a href="${jiraUrl}/browse/${link.source.id}" target="_blank" class="text-indigo-600 hover:underline">${link.source.id}</a>`;
             }
             return `<li>${text}</li>`;
         }).join('');
@@ -451,14 +452,26 @@ skillToggle.addEventListener('change', () => {
 
 // --- VIEW LOGIC ---
 resetViewBtn.addEventListener('click', () => {
-    if (currentGraphData && zoom) {
-        const svg = d3.select("#graph-svg");
-        const container = svg.select("g");
-        if (!container.empty()) {
-            container.transition().duration(750).attr('transform', d3.zoomIdentity);
-        }
-        svg.call(zoom.transform, d3.zoomIdentity);
-        if (simulation) { simulation.alpha(0.3).restart(); }
+    if (currentGraphData) {
+        currentGraphData.nodes.forEach(node => {
+            delete node.x;
+            delete node.y;
+            delete node.vx;
+            delete node.vy;
+            delete node.fx;
+            delete node.fy;
+        });
+
+        renderGraph(
+            currentGraphData,
+            selectedNodeId,
+            graphContainer,
+            handleNodeSelect,
+            simulation,
+            handleSimulation,
+            zoom,
+            handleZoom
+        );
     }
 });
 
