@@ -1,5 +1,5 @@
 /**
- * Renders the D3 graph view.
+ * Renders the D3 graph view
  */
 
 import { statusColors } from "./colors.js";

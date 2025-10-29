@@ -255,11 +255,14 @@ function renderDeveloperList(devList) {
         return;
     }
 
+    const adminControls = document.getElementById('admin-controls');
+    const isUserAdmin = adminControls && !adminControls.classList.contains('hidden');
+
     const useSkillBasedMode = document.getElementById('skill-toggle').checked;
 
     devListContainer.innerHTML = devList.map(dev => {
         const hasVelocity = dev.velocity !== undefined; 
-        const showVelocity = hasVelocity && document.getElementById('velocity-toggle')?.checked;
+        const showVelocity = isUserAdmin && document.getElementById('velocity-toggle')?.checked;
         const totalVeloText = showVelocity ? `(${(dev.velocity / 4.3).toFixed(1)} total pts/wk)` : '';
         
         

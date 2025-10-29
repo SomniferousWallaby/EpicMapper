@@ -1,24 +1,17 @@
 // server.js
 
-// 1. Import dependencies
 const adminEmails = require ('./adminUsers.js');
 const express = require('express');
-const fetch = require('node-fetch'); // For making HTTP requests in Node
-const cors = require('cors'); // To handle CORS for our own server if needed
+const fetch = require('node-fetch');
+const cors = require('cors');
 require('dotenv').config();
 
-// 2. Setup the Express app
 const app = express();
 const PORT = 8123;
-
-// 2a. Admin users
 const ADMIN_EMAILS = adminEmails.adminEmails;
 
-// 3. Middleware
 app.use(express.json());
 app.use(cors());
-
-// Serve static files (index.html, css, js) from a 'public' folder
 app.use(express.static('public')); 
 
 /**
@@ -88,7 +81,7 @@ async function executeJiraSearch(jql, storyPointFieldId, skillFieldId, jiraUrl, 
 }
 
 
-// 4. The Proxy Routes
+// Proxy Routes
 app.post('/api/jira', async (req, res) => {
     const { jiraUrl, email, apiToken, epicKeys } = req.body;
     console.debug('Received request with:', req.body);
@@ -104,7 +97,7 @@ app.post('/api/jira', async (req, res) => {
     };
 
     try {
-        // Find the story point field ID for the Jira instance.
+        // Find the story point field ID for the Jira instance
         const [storyPointFieldId, skillFieldId] = await getStoryPointAndSkillFieldId(jiraUrl, headers);
         if (storyPointFieldId) {
              console.debug(`Discovered Story Point Field ID: ${storyPointFieldId}`);
@@ -119,7 +112,7 @@ app.post('/api/jira', async (req, res) => {
 
         const epicKeysJQL = epicKeys.map(key => `"${key}"`).join(', ');
         
-        // Try Team-Managed JQL
+        // Team-Managed JQL
         const jqlTeamManaged = `parent in (${epicKeysJQL}) OR key in (${epicKeysJQL})`;
         let result = await executeJiraSearch(jqlTeamManaged, storyPointFieldId, skillFieldId, jiraUrl, headers);
         
@@ -128,7 +121,7 @@ app.post('/api/jira', async (req, res) => {
             return res.status(200).json({ issues: result.data.issues, storyPointFieldId: storyPointFieldId, skillFieldId: skillFieldId});
         }
         
-        // Try Company-Managed JQL
+        // Company-Managed JQL
         const jqlCompanyManaged = `'Epic Link' in (${epicKeysJQL}) OR key in (${epicKeysJQL})`;
         result = await executeJiraSearch(jqlCompanyManaged, storyPointFieldId, skillFieldId, jiraUrl, headers);
 
@@ -243,7 +236,6 @@ app.post('/api/developers', async (req, res) => {
     }
 });
 
-// 5. Start the server
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
