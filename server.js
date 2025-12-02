@@ -1,22 +1,115 @@
 // server.js
-
-const adminEmails = require ('./adminUsers.js');
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const session = require('express-session');
+const RedisStore = require('connect-redis').default
+const { createClient } = require('redis');
+
 require('dotenv').config();
 
 const app = express();
 const PORT = 8123;
-const ADMIN_EMAILS = adminEmails.adminEmails;
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS;
+
+
+// --- Redis Setup ---
+const redisClient = createClient({
+    url: process.env.REDIS_URL
+})
+
+redisClient.connect().catch(console.error);
+
+app.use(session({
+    store: new RedisStore({ client: redisClient }),
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxage: 1000 * 60 * 60 * 24
+    }
+}));
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: process.env.CORS_ORIGIN,
+    credentials: true
+}));
 app.use(express.static('public')); 
 
+// --- Oauth ---
+const JIRA_CLIENT_ID = process.env.JIRA_CLIENT_ID;
+const JIRA_CLIENT_SECRET = process.env.JIRA_CLIENT_SECRET;
+const JIRA_REDIRECT_URI = process.env.JIRA_REDIRECT_URI;
+const SCOPES = 'read:jira-work read:jira-user offline_access';
+
+
+// --- Auth Routes ---
+app.get('/auth/jira', (req, res) => {
+    const authorizationUrl = `https://auth.atlassian.com/authorize?` +
+        `audience=api.atlassian.com&` +
+        `client_id=${JIRA_CLIENT_ID}&` +
+        `scope=${encodeURIComponent(SCOPES)}&` +
+        `redirect_uri=${encodeURIComponent(REDIRECT_URI)}&` +
+        `state=${req.sessionID}&` + // simple state protection
+        `response_type=code&` +
+        `prompt=consent`;
+    
+    res.redirect(authorizationUrl);
+});
+
+app.get('/auth/jira/callback', async (req, res) => {
+    const { code } = req.query;
+    try {
+        const tokenResponse = await fetch('https://auth.atlassian.com/oauth/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: JIRA_CLIENT_ID,
+                client_secret: JIRA_CLIENT_SECRET,
+                code: code,
+                grant_type: 'authorization_code',
+                redirect_uri: JIRA_REDIRECT_URI
+            })
+        });
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.access_token) throw new Error ("No access token in response");
+
+        const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        const resourcesData = await resourcesRes.json();
+        const cloudID = resources[0].id;
+
+        req.session.Jira = {
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            cloudID: cloudID,
+            url: `https://api.atlassian.com/ex/jira/${cloudID}`
+        };
+
+        res.redirect('/');
+    } catch (error) {
+        console.error("Oauth Error", error);
+        res.status(500).send("Authentication Failed");
+    }
+});
+
+// --- Helper Functions ---
 /**
  * Fetches all fields from Jira to find the specific custom field ID for Story Points.
  */
+
+//TODO: check expiration and use session.jira.refreshToken to get a new session token if needed
+async function getValidToken(session) {
+    return session.jira.accessToken;
+}
+
 async function getStoryPointAndSkillFieldId(jiraUrl, headers) {
     const fieldUrl = `${jiraUrl}/rest/api/3/field`;
     try {
