@@ -53,12 +53,14 @@ function requireAuth(req, res, next) {
 
 // --- Auth Routes ---
 app.get('/auth/jira', (req, res) => {
+    req.session.oauthState = req.sessionID; // writing to session forces cookie to be set
+
     const authorizationUrl = `https://auth.atlassian.com/authorize?` +
         `audience=api.atlassian.com&` +
         `client_id=${JIRA_CLIENT_ID}&` +
         `scope=${encodeURIComponent(SCOPES)}&` +
         `redirect_uri=${encodeURIComponent(JIRA_REDIRECT_URI)}&` +
-        `state=${req.sessionID}&` +
+        `state=${req.session.oauthState}&` +
         `response_type=code&` +
         `prompt=consent`;
 
@@ -67,7 +69,7 @@ app.get('/auth/jira', (req, res) => {
 
 app.get('/auth/jira/callback', async (req, res) => {
     const { code, state } = req.query;
-    if (state !== req.sessionID) {
+    if (state !== req.session.oauthState) {
         return res.status(403).send("Invalid state parameter. Possible CSRF attack.");
     }
     try {
@@ -115,8 +117,10 @@ app.get('/auth/jira/callback', async (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => {
-    req.session.destroy();
-    res.redirect('/');
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.redirect('/');
+    });
 });
 
 app.get('/api/auth/status', (req, res) => {
