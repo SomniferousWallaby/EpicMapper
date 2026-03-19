@@ -32,7 +32,7 @@ const skillToggle = document.getElementById('skill-toggle');
 const ganttFilterCheckbox = document.getElementById('gantt-filter-completed');
 
 // --- Global Variables ---
-let JIRA_URL, EMAIL, API_TOKEN, EPIC_KEY;
+let JIRA_URL, EPIC_KEY;
 let currentGraphData = null;
 let selectedNodeId = null;
 let simulation = null;
@@ -191,21 +191,13 @@ function updateIssueDetailsPanel(nodeId, graphData, jiraUrl) {
 
 // --- Developer Data Functions ---
 async function fetchDevelopers() {
-    if (!JIRA_URL || !EMAIL || !API_TOKEN) {
-        console.warn("Cannot fetch developers, Jira credentials are not set.");
-        return { developers: [], isUserAdmin: false }; 
-    }
     try {
-        const response = await fetch('/api/developers', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jiraUrl: JIRA_URL, email: EMAIL, apiToken: API_TOKEN })
-        });
+        const response = await fetch('/api/developers', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
         if (!response.ok) {
             console.error('Failed to fetch developers:', response.statusText);
             return { developers: [], isUserAdmin: false };
         }
-        return await response.json(); 
+        return await response.json();
     } catch (error) {
         console.error('Error fetching developers:', error);
         return { developers: [], isUserAdmin: false };
@@ -402,41 +394,51 @@ function renderEstimationView() {
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', async () => {
+    const authSection = document.getElementById('auth-section');
+    const configForm = document.getElementById('config-form');
+    const jiraInstanceLink = document.getElementById('jira-instance-link');
+
     try {
-        const savedConfig = JSON.parse(localStorage.getItem('jiraConfig'));
-        if (savedConfig) {
-            document.getElementById('jira-url').value = savedConfig.jiraUrl || '';
-            document.getElementById('email').value = savedConfig.email || '';
-            document.getElementById('epic-key').value = savedConfig.epicKey || '';
-            JIRA_URL = savedConfig.jiraUrl;
-            EMAIL = savedConfig.email;
-            API_TOKEN = document.getElementById('api-token').value.trim();
-            if (API_TOKEN) {
-                await loadDevelopers();
+        const res = await fetch('/api/auth/status');
+        const { authenticated, instanceUrl } = await res.json();
+
+        if (authenticated) {
+            JIRA_URL = instanceUrl;
+            authSection.classList.add('hidden');
+            configForm.classList.remove('hidden');
+            jiraInstanceLink.textContent = instanceUrl.replace('https://', '');
+            jiraInstanceLink.href = instanceUrl;
+
+            const savedConfig = JSON.parse(localStorage.getItem('jiraConfig') || '{}');
+            if (savedConfig.epicKey) {
+                document.getElementById('epic-key').value = savedConfig.epicKey;
             }
+            await loadDevelopers();
+        } else {
+            authSection.classList.remove('hidden');
+            configForm.classList.add('hidden');
         }
-    } catch (e) { console.error("Could not load config from localStorage", e); }
+    } catch (e) {
+        console.error("Could not check auth status", e);
+        authSection.classList.remove('hidden');
+        configForm.classList.add('hidden');
+    }
 });
 
 visualizeBtn.addEventListener('click', async () => {
-    JIRA_URL = document.getElementById('jira-url').value.trim();
-    EMAIL = document.getElementById('email').value.trim();
-    API_TOKEN = document.getElementById('api-token').value.trim();
     let epic_key_input = document.getElementById('epic-key').value.trim();
     EPIC_KEY = epic_key_input.split(',').map(k => k.trim()).filter(k => k);
 
-    if (!JIRA_URL || !EMAIL || !API_TOKEN || !EPIC_KEY.length) {
-        alert('Please fill in all Jira configuration fields.');
+    if (!EPIC_KEY.length) {
+        alert('Please enter an Epic Issue Key.');
         return;
     }
-    if (JIRA_URL.endsWith('/')) { JIRA_URL = JIRA_URL.slice(0, -1); }
 
-    const configToSave = { jiraUrl: JIRA_URL, email: EMAIL, epicKey: epic_key_input };
-    localStorage.setItem('jiraConfig', JSON.stringify(configToSave));
+    localStorage.setItem('jiraConfig', JSON.stringify({ epicKey: epic_key_input }));
     await loadDevelopers();
 
     const graph = await fetchDataAndRender(
-        JIRA_URL, EMAIL, API_TOKEN, EPIC_KEY,
+        JIRA_URL, EPIC_KEY,
         handleNodeSelect, selectedNodeId, handleSimulation, simulation,
         handleZoom, zoom, graphContainer, ganttContainer, estimateContainer,
         loader, placeholder, issueDetailsPanel, epicHeader, epicTitle,

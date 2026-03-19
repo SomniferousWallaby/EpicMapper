@@ -20,22 +20,21 @@
                 <h1 class="text-3xl font-bold text-gray-900">Epic Mapper</h1> <p class="text-sm text-gray-500">An interactive dependency visualizer and planning tool for Jira</p> </div>
         </header>
 
-            <!-- Configuration Form -->
-            <div id="config-form" class="space-y-4">
-                <div>
-                    <label for="jira-url" class="block text-sm font-medium text-gray-700">Jira URL</label>
-                    <input type="text" id="jira-url" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="https://your-company.atlassian.net">
+            <!-- Auth Section (shown when not logged in) -->
+            <div id="auth-section" class="hidden space-y-4">
+                <p class="text-sm text-gray-600">Connect your Jira account to get started.</p>
+                <a href="/auth/jira" class="w-full flex items-center justify-center bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-150 ease-in-out">
+                    Login with Jira
+                </a>
+            </div>
+
+            <!-- Configuration Form (shown when logged in) -->
+            <div id="config-form" class="hidden space-y-4">
+                <div id="jira-account-info" class="flex items-center justify-between text-sm">
+                    <span class="text-gray-500">Connected to: <a id="jira-instance-link" href="#" target="_blank" class="text-indigo-600 hover:underline font-medium"></a></span>
+                    <a href="/auth/logout" class="text-red-500 hover:underline text-xs">Logout</a>
                 </div>
                 <div>
-                    <label for="email" class="block text-sm font-medium text-gray-700">Your Email</label>
-                    <input type="email" id="email" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="user@example.com">
-                </div>
-                <div>
-                    <label for="api-token" class="block text-sm font-medium text-gray-700">API Token</label>
-                    <input type="password" id="api-token" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Your Jira API Token">
-                     <a href="https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/" target="_blank" class="text-xs text-indigo-600 hover:underline mt-1">How to generate an API token</a>
-                </div>
-                 <div>
                     <label for="epic-key" class="block text-sm font-medium text-gray-700">Epic Issue Key</label>
                     <input type="text" id="epic-key" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="PROJ-123">
                 </div>

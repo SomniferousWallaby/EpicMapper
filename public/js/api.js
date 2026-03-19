@@ -3,7 +3,7 @@
 import { setActiveView } from "./state.js";
 import { renderGraph } from "./graph.js";
 
-export async function fetchDataAndRender(JIRA_URL, EMAIL, API_TOKEN, EPIC_KEY,
+export async function fetchDataAndRender(JIRA_URL, EPIC_KEY,
   handleNodeSelect,
   selectedNodeId,
   handleSimulation,
@@ -38,11 +38,11 @@ export async function fetchDataAndRender(JIRA_URL, EMAIL, API_TOKEN, EPIC_KEY,
 
 
     try {
-        console.log('Fetching data with:', { JIRA_URL, EMAIL, API_TOKEN, EPIC_KEY });
+        console.log('Fetching data with:', { JIRA_URL, EPIC_KEY });
         const response = await fetch('/api/jira', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jiraUrl: JIRA_URL, email: EMAIL, apiToken: API_TOKEN, epicKeys: EPIC_KEY })
+            body: JSON.stringify({ epicKeys: EPIC_KEY })
         });
 
         if (!response.ok) {
