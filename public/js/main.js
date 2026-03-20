@@ -39,6 +39,74 @@ let simulation = null;
 let zoom = null;
 let devs = [];
 let savedDevStates = {};
+let selectedEpics = []; // { key, summary, project }
+let searchDebounceTimer = null;
+
+// --- Epic Search ---
+function renderSelectedEpics() {
+    const container = document.getElementById('selected-epics');
+    if (!container) return;
+    container.innerHTML = selectedEpics.map(e => `
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-medium">
+            <span class="font-mono">${e.key}</span>
+            <button data-key="${e.key}" class="epic-remove ml-1 text-indigo-400 hover:text-indigo-700 leading-none">&times;</button>
+        </span>
+    `).join('');
+    container.querySelectorAll('.epic-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            selectedEpics = selectedEpics.filter(e => e.key !== btn.dataset.key);
+            renderSelectedEpics();
+        });
+    });
+}
+
+function addEpic(epic) {
+    if (selectedEpics.some(e => e.key === epic.key)) return;
+    selectedEpics.push(epic);
+    renderSelectedEpics();
+}
+
+async function searchEpics(q) {
+    const dropdown = document.getElementById('epic-dropdown');
+    if (q.length < 2) { dropdown.classList.add('hidden'); return; }
+
+    dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400">Searching...</div>';
+    dropdown.classList.remove('hidden');
+
+    try {
+        const res = await fetch(`/api/search/epics?q=${encodeURIComponent(q)}`);
+        const { epics } = await res.json();
+
+        if (!epics || epics.length === 0) {
+            dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400">No epics found.</div>';
+            return;
+        }
+
+        dropdown.innerHTML = epics.map(e => {
+            const alreadySelected = selectedEpics.some(s => s.key === e.key);
+            return `
+                <div data-key="${e.key}" data-summary="${e.summary.replace(/"/g, '&quot;')}" data-project="${e.project}"
+                    class="epic-option px-3 py-2 cursor-pointer hover:bg-indigo-50 ${alreadySelected ? 'opacity-40 pointer-events-none' : ''}">
+                    <div class="flex items-baseline gap-2">
+                        <span class="font-mono text-xs text-indigo-600">${e.key}</span>
+                        <span class="text-gray-800 truncate">${e.summary}</span>
+                    </div>
+                    <div class="text-xs text-gray-400">${e.project}</div>
+                </div>
+            `;
+        }).join('');
+
+        dropdown.querySelectorAll('.epic-option').forEach(el => {
+            el.addEventListener('click', () => {
+                addEpic({ key: el.dataset.key, summary: el.dataset.summary, project: el.dataset.project });
+                document.getElementById('epic-search').value = '';
+                dropdown.classList.add('hidden');
+            });
+        });
+    } catch (err) {
+        dropdown.innerHTML = '<div class="px-3 py-2 text-red-400">Search failed.</div>';
+    }
+}
 
 // --- Callback Functions ---
 function handleCurrentGraphData(data) { 
@@ -410,8 +478,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             jiraInstanceLink.href = instanceUrl;
 
             const savedConfig = JSON.parse(localStorage.getItem('jiraConfig') || '{}');
-            if (savedConfig.epicKey) {
-                document.getElementById('epic-key').value = savedConfig.epicKey;
+            if (savedConfig.epicKeys?.length) {
+                savedConfig.epicKeys.forEach(e => addEpic(e));
             }
             await loadDevelopers();
         } else {
@@ -425,16 +493,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#epic-search') && !e.target.closest('#epic-dropdown')) {
+        document.getElementById('epic-dropdown')?.classList.add('hidden');
+    }
+});
+
+document.getElementById('epic-search')?.addEventListener('input', (e) => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => searchEpics(e.target.value.trim()), 300);
+});
+
 visualizeBtn.addEventListener('click', async () => {
-    let epic_key_input = document.getElementById('epic-key').value.trim();
-    EPIC_KEY = epic_key_input.split(',').map(k => k.trim()).filter(k => k);
+    EPIC_KEY = selectedEpics.map(e => e.key);
 
     if (!EPIC_KEY.length) {
-        alert('Please enter an Epic Issue Key.');
+        alert('Please select at least one epic.');
         return;
     }
 
-    localStorage.setItem('jiraConfig', JSON.stringify({ epicKey: epic_key_input }));
+    localStorage.setItem('jiraConfig', JSON.stringify({ epicKeys: selectedEpics }));
     await loadDevelopers();
 
     const graph = await fetchDataAndRender(

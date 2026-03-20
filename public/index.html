@@ -35,8 +35,14 @@
                     <a href="/auth/logout" class="text-red-500 hover:underline text-xs">Logout</a>
                 </div>
                 <div>
-                    <label for="epic-key" class="block text-sm font-medium text-gray-700">Epic Issue Key</label>
-                    <input type="text" id="epic-key" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="PROJ-123">
+                    <label class="block text-sm font-medium text-gray-700">Epics</label>
+                    <div id="selected-epics" class="flex flex-wrap gap-1 mt-1"></div>
+                    <div class="relative mt-1">
+                        <input type="text" id="epic-search" autocomplete="off"
+                            class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="Search epics...">
+                        <div id="epic-dropdown" class="hidden absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-52 overflow-y-auto text-sm"></div>
+                    </div>
                 </div>
                 <button id="visualize-btn" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
                     Visualize

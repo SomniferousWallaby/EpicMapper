@@ -210,6 +210,40 @@ async function executeJiraSearch(jql, storyPointFieldId, skillFieldId, jiraUrl, 
 
 
 // Proxy Routes
+app.get('/api/search/epics', requireAuth, async (req, res) => {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json({ epics: [] });
+
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
+
+    const safeQ = q.replace(/"/g, '\\"');
+    const jql = `issuetype = Epic AND text ~ "${safeQ}" ORDER BY updated DESC`;
+
+    try {
+        const response = await fetch(`${jiraUrl}/rest/api/3/search/jql`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ jql, fields: ['summary', 'status', 'project'], maxResults: 10 })
+        });
+        const data = await response.json();
+        if (!response.ok) return res.status(response.status).json({ error: 'Search failed' });
+        const epics = (data.issues || []).map(i => ({
+            key: i.key,
+            summary: i.fields.summary,
+            project: i.fields.project?.name || ''
+        }));
+        res.json({ epics });
+    } catch (err) {
+        res.status(500).json({ error: 'Search failed' });
+    }
+});
+
 app.post('/api/jira', requireAuth, async (req, res) => {
     const { epicKeys } = req.body;
     console.debug('Received request with:', req.body);
