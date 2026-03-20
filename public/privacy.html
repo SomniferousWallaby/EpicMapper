@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — Epic Mapper</title>
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+    <div class="max-w-2xl mx-auto px-6 py-16">
+        <a href="/" class="text-sm text-indigo-600 hover:underline">&larr; Back to Epic Mapper</a>
+
+        <h1 class="text-3xl font-bold text-gray-900 mt-6 mb-2">Privacy Policy</h1>
+        <p class="text-sm text-gray-500 mb-10">Last updated: March 2026</p>
+
+        <div class="space-y-8 text-sm leading-relaxed text-gray-700">
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">Overview</h2>
+                <p>Epic Mapper is a personal project operated by Thomas Lees. It is made available as a convenience tool, primarily for internal team use. This policy explains what data is accessed and how it is handled.</p>
+            </section>
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">What data is accessed</h2>
+                <p>When you log in with your Atlassian account, Epic Mapper receives:</p>
+                <ul class="list-disc list-inside mt-2 space-y-1">
+                    <li>An OAuth access token issued by Atlassian</li>
+                    <li>Your Jira account email address</li>
+                    <li>Your Jira cloud instance URL</li>
+                </ul>
+                <p class="mt-3">This information is used solely to make requests to the Jira API on your behalf. Jira project data (epics, issues, dependencies) is fetched live and is never stored persistently.</p>
+            </section>
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">How data is stored</h2>
+                <p>Your OAuth token and session data are held in server memory only for the duration of your session. No data is written to a database or disk. Sessions are cleared when you log out or when the server restarts. No personal data is retained between sessions.</p>
+            </section>
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">Cookies</h2>
+                <p>Epic Mapper sets a single session cookie (<code class="bg-gray-100 px-1 rounded">connect.sid</code>) to maintain your login state. This cookie contains only an opaque session identifier — no personal data. It expires after 24 hours and is marked <code class="bg-gray-100 px-1 rounded">HttpOnly</code> and <code class="bg-gray-100 px-1 rounded">Secure</code>.</p>
+            </section>
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">Third parties</h2>
+                <p>Epic Mapper communicates only with Atlassian's APIs. No data is shared with any other third party. There is no analytics, advertising, or tracking of any kind.</p>
+            </section>
+
+            <section>
+                <h2 class="text-base font-semibold text-gray-900 mb-2">Contact</h2>
+                <p>Questions about this policy can be raised by <a href="https://github.com/SomniferousWallaby/EpicMapper/issues" class="text-indigo-600 hover:underline" target="_blank" rel="noopener">opening a GitHub issue</a>.</p>
+            </section>
+
+        </div>
+    </div>
+</body>
+</html>

@@ -1,18 +1,146 @@
 // server.js
-
-const adminEmails = require ('./adminUsers.js');
 const express = require('express');
 const fetch = require('node-fetch');
 const cors = require('cors');
+const session = require('express-session');
+
 require('dotenv').config();
 
 const app = express();
-const PORT = 8123;
-const ADMIN_EMAILS = adminEmails.adminEmails;
+app.set('trust proxy', 1); // required for secure cookies behind Cloud Run's load balancer
+const PORT = process.env.PORT || 8123;
+const ADMIN_EMAILS = process.env.ADMIN_EMAILS;
+
+// --- Session Store Setup ---
+// Uses Redis if REDIS_URL is set, otherwise falls back to in-memory (fine for single-instance/dev)
+async function buildSessionStore() {
+    if (process.env.REDIS_URL) {
+        const { default: RedisStore } = require('connect-redis');
+        const { createClient } = require('redis');
+        const redisClient = createClient({ url: process.env.REDIS_URL });
+        await redisClient.connect();
+        console.log('Using Redis session store');
+        return new RedisStore({ client: redisClient });
+    }
+    console.warn('No REDIS_URL set — using in-memory session store. Sessions will not persist across restarts.');
+    return undefined; // express-session defaults to MemoryStore
+}
 
 app.use(express.json());
-app.use(cors());
-app.use(express.static('public')); 
+app.use(cors({
+    origin: process.env.CORS_ORIGIN,
+    credentials: true
+}));
+app.use(express.static('public'));
+
+// Session middleware placeholder — filled in before app.listen, so it's always set when requests arrive
+let _sessionMiddleware;
+app.use((req, res, next) => _sessionMiddleware(req, res, next));
+
+// --- Oauth ---
+const JIRA_CLIENT_ID = process.env.JIRA_CLIENT_ID;
+const JIRA_CLIENT_SECRET = process.env.JIRA_CLIENT_SECRET;
+const JIRA_REDIRECT_URI = process.env.JIRA_REDIRECT_URI;
+const SCOPES = 'read:jira-work read:jira-user offline_access';
+
+
+// --- Auth Middleware ---
+function requireAuth(req, res, next) {
+    if (!req.session.jira || !req.session.jira.accessToken) {
+        return res.status(401).json({ error: 'Not authenticated. Please log in with Jira.' });
+    }
+    next();
+}
+
+// --- Auth Routes ---
+app.get('/auth/jira', (req, res) => {
+    req.session.oauthState = req.sessionID;
+
+    const authorizationUrl = `https://auth.atlassian.com/authorize?` +
+        `audience=api.atlassian.com&` +
+        `client_id=${JIRA_CLIENT_ID}&` +
+        `scope=${encodeURIComponent(SCOPES)}&` +
+        `redirect_uri=${encodeURIComponent(JIRA_REDIRECT_URI)}&` +
+        `state=${req.session.oauthState}&` +
+        `response_type=code&` +
+        `prompt=consent`;
+
+    req.session.save((err) => {
+        if (err) return res.status(500).send('Session save failed');
+        res.redirect(authorizationUrl);
+    });
+});
+
+app.get('/auth/jira/callback', async (req, res) => {
+    const { code, state } = req.query;
+    if (state !== req.session.oauthState) {
+        return res.status(403).send("Invalid state parameter. Possible CSRF attack.");
+    }
+    try {
+        const tokenResponse = await fetch('https://auth.atlassian.com/oauth/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                client_id: JIRA_CLIENT_ID,
+                client_secret: JIRA_CLIENT_SECRET,
+                code: code,
+                grant_type: 'authorization_code',
+                redirect_uri: JIRA_REDIRECT_URI
+            })
+        });
+        const tokenData = await tokenResponse.json();
+
+        if (!tokenData.access_token) throw new Error("No access token in response");
+
+        const resourcesRes = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        const resourcesData = await resourcesRes.json();
+        const cloudID = resourcesData[0].id;
+        const instanceUrl = resourcesData[0].url;
+
+        const meRes = await fetch('https://api.atlassian.com/me', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        });
+        const meData = await meRes.json();
+
+        req.session.jira = {
+            accessToken: tokenData.access_token,
+            refreshToken: tokenData.refresh_token,
+            cloudID: cloudID,
+            apiUrl: `https://api.atlassian.com/ex/jira/${cloudID}`,
+            instanceUrl: instanceUrl,
+            userEmail: meData.email || ''
+        };
+
+        res.redirect('/');
+    } catch (error) {
+        console.error("Oauth Error", error);
+        res.status(500).send("Authentication Failed");
+    }
+});
+
+app.get('/auth/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.redirect('/');
+    });
+});
+
+app.get('/api/auth/status', (req, res) => {
+    if (req.session.jira && req.session.jira.accessToken) {
+        res.json({ authenticated: true, instanceUrl: req.session.jira.instanceUrl });
+    } else {
+        res.json({ authenticated: false });
+    }
+});
+
+// --- Helper Functions ---
+
+//TODO: check expiration and use session.jira.refreshToken to get a new session token if needed
+async function getValidToken(session) {
+    return session.jira.accessToken;
+}
 
 /**
  * Fetches all fields from Jira to find the specific custom field ID for Story Points.
@@ -42,7 +170,7 @@ async function getStoryPointAndSkillFieldId(jiraUrl, headers) {
 }
 
 /**
- * Helper function to execute a Jira search query.
+ * Executes a Jira search query.
  * Dynamically includes the story point field in the request.
  */
 async function executeJiraSearch(jql, storyPointFieldId, skillFieldId, jiraUrl, headers) {
@@ -82,16 +210,18 @@ async function executeJiraSearch(jql, storyPointFieldId, skillFieldId, jiraUrl, 
 
 
 // Proxy Routes
-app.post('/api/jira', async (req, res) => {
-    const { jiraUrl, email, apiToken, epicKeys } = req.body;
+app.post('/api/jira', requireAuth, async (req, res) => {
+    const { epicKeys } = req.body;
     console.debug('Received request with:', req.body);
 
-    if (!jiraUrl || !email || !apiToken || !epicKeys) {
-        return res.status(400).json({ error: 'Missing required Jira credentials or Epic Key.' });
+    if (!epicKeys) {
+        return res.status(400).json({ error: 'Missing Epic Key.' });
     }
 
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
     const headers = {
-        'Authorization': `Basic ${Buffer.from(`${email}:${apiToken}`).toString('base64')}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
     };
@@ -139,16 +269,15 @@ app.post('/api/jira', async (req, res) => {
     }
 });
 
-app.post('/api/developers', async (req, res) => {
-    const { jiraUrl, email, apiToken } = req.body;
-    if (!jiraUrl || !email || !apiToken) {
-        return res.status(400).json({ error: "Missing Jira credentials." });
-    }
+app.post('/api/developers', requireAuth, async (req, res) => {
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
+    const userEmail = req.session.jira.userEmail;
 
-    const isAdmin = ADMIN_EMAILS.includes(email);
+    const isAdmin = ADMIN_EMAILS && ADMIN_EMAILS.includes(userEmail);
 
     const headers = {
-        "Authorization": "Basic " + Buffer.from(`${email}:${apiToken}`).toString("base64"),
+        "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
         "Content-Type": "application/json"
     };
@@ -236,6 +365,25 @@ app.post('/api/developers', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
-});
+(async () => {
+    const store = await buildSessionStore().catch(err => {
+        console.error('Failed to connect to Redis:', err);
+        process.exit(1);
+    });
+
+    _sessionMiddleware = session({
+        store,
+        secret: process.env.SESSION_SECRET,
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24
+        }
+    });
+
+    app.listen(PORT, () => {
+        console.log(`Server is running at http://localhost:${PORT}`);
+    });
+})();
