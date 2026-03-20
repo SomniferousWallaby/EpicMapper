@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:css": "tailwindcss -i public/css/tailwind.css -o public/css/output.css --minify"
   },
   "keywords": [],
   "author": "",
@@ -18,5 +19,8 @@
     "express-session": "^1.19.0",
     "node-fetch": "^2.7.0",
     "redis": "^5.11.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
   }
 }

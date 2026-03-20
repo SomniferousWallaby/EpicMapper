@@ -3,7 +3,7 @@
 import { setActiveView } from "./state.js";
 import { renderGraph } from "./graph.js";
 
-export async function fetchDataAndRender(JIRA_URL, EPIC_KEY,
+export async function fetchDataAndRender(JIRA_URL, dataSource,
   handleNodeSelect,
   selectedNodeId,
   handleSimulation,
@@ -30,62 +30,81 @@ export async function fetchDataAndRender(JIRA_URL, EPIC_KEY,
     epicHeader.classList.add('hidden');
     resetViewBtn.classList.add('hidden');
     d3.select("#graph-svg").selectAll("*").remove();
-    
+
     const ganttHeaderContainer = document.getElementById('gantt-header');
     const ganttRowsContainer = document.getElementById('gantt-rows');
     if(ganttHeaderContainer) ganttHeaderContainer.innerHTML = '';
     if(ganttRowsContainer) ganttRowsContainer.innerHTML = '';
 
-
     try {
-        console.log('Fetching data with:', { JIRA_URL, EPIC_KEY });
-        const response = await fetch('/api/jira', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ epicKeys: EPIC_KEY })
-        });
+        let responseData;
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error("Error response from server:", errorData);
-            throw new Error(errorData.error || `Request failed: ${response.status}`);
+        if (dataSource.mode === 'sprint') {
+            const response = await fetch('/api/sprint', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sprintId: dataSource.sprintId })
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Request failed: ${response.status}`);
+            }
+            responseData = await response.json();
+        } else {
+            const response = await fetch('/api/jira', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ epicKeys: dataSource.epicKeys })
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Request failed: ${response.status}`);
+            }
+            responseData = await response.json();
         }
 
-        const responseData = await response.json();
-        const { epic, nodes, links } = processJiraData(responseData.issues, responseData.storyPointFieldId, responseData.skillFieldId, EPIC_KEY);
+        const { epic, nodes, links } = processJiraData(
+            responseData.issues,
+            responseData.storyPointFieldId,
+            responseData.skillFieldId,
+            dataSource.mode === 'sprint' ? [] : dataSource.epicKeys
+        );
 
-        if (epic) {
+        if (dataSource.mode === 'sprint') {
+            epicTitle.textContent = dataSource.sprintName;
+            let datesText = '';
+            if (dataSource.sprintStartDate && dataSource.sprintEndDate) {
+                const fmt = d => new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                datesText = `${fmt(dataSource.sprintStartDate)} – ${fmt(dataSource.sprintEndDate)}`;
+            }
+            epicSummary.textContent = datesText;
+            epicHeader.classList.remove('hidden');
+        } else if (epic) {
             if (epic.epics) {
                 epicTitle.textContent = epic.epics.length > 1 ? 'Multiple Epics' : '';
-                const epicDetailsHTML = epic.epics.map(e => {
-                    return `
-                        <div>
-                            <a href="${JIRA_URL}/browse/${e.key}" target="_blank" class="text-indigo-600 hover:underline font-mono">${e.key}</a>:
-                            <span class="text-gray-600">${e.summary}</span>
-                        </div>
-                    `;
-                }).join('');
-                
-                epicSummary.innerHTML = epicDetailsHTML;
-
+                epicSummary.innerHTML = epic.epics.map(e => `
+                    <div>
+                        <a href="${JIRA_URL}/browse/${e.key}" target="_blank" class="text-indigo-600 hover:underline font-mono">${e.key}</a>:
+                        <span class="text-gray-600">${e.summary}</span>
+                    </div>
+                `).join('');
             } else {
                 epicTitle.innerHTML = `<a href="${JIRA_URL}/browse/${epic.id}" target="_blank" class="text-indigo-600 hover:underline">${epic.id}</a>`;
                 epicSummary.textContent = epic.summary;
             }
-
             epicHeader.classList.remove('hidden');
         }
 
         const graph = { nodes, links };
-    
+
         if (graph.nodes.length > 0) {
             setActiveView('graph', graphContainer, ganttContainer, estimateContainer, showGraphBtn, showGanttBtn, showEstimateBtn);
             renderGraph(
-              graph, 
-              selectedNodeId, 
-              graphContainer, 
-              handleNodeSelect, 
-              simulation, 
+              graph,
+              selectedNodeId,
+              graphContainer,
+              handleNodeSelect,
+              simulation,
               handleSimulation,
               zoom,
               handleZoom,
@@ -94,7 +113,8 @@ export async function fetchDataAndRender(JIRA_URL, EPIC_KEY,
             );
             resetViewBtn.classList.remove('hidden');
         } else {
-            placeholder.innerHTML = `<p class="text-xl font-medium text-red-500">No child issues found for Epic ${EPIC_KEY}.</p>`;
+            const label = dataSource.mode === 'sprint' ? `Sprint "${dataSource.sprintName}"` : `Epic ${dataSource.epicKeys}`;
+            placeholder.innerHTML = `<p class="text-xl font-medium text-red-500">No issues found for ${label}.</p>`;
             placeholder.classList.remove('hidden');
         }
         return graph;

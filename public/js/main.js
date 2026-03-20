@@ -1,11 +1,13 @@
-// main.js
+// main.js — App orchestration: shared state init, callbacks, stats panels, event listeners.
 import { renderGanttChart, updateGanttSelection } from './gantt.js'
 import { renderGraph, updateGraphSelection } from './graph.js';
 import { setActiveView } from './state.js';
 import { fetchDataAndRender } from './api.js';
+import { appState } from './store.js';
+import { addEpic, initSearchListeners } from './search.js';
+import { loadDevelopers, persistAndRerenderDevList, renderEstimationView } from './developers.js';
 
 // --- DOM Elements ---
-const adminControls = document.getElementById('admin-controls');
 const velocityToggle = document.getElementById('velocity-toggle');
 const visualizeBtn = document.getElementById('visualize-btn');
 const resetViewBtn = document.getElementById('reset-view-btn');
@@ -23,115 +25,36 @@ const epicTitle = document.getElementById('epic-title');
 const epicSummary = document.getElementById('epic-summary');
 const epicStatsContainer = document.getElementById('epic-stats-container');
 const epicPercentComplete = document.getElementById('epic-percent-complete');
-const epicPointsSummary = document.getElementById('epic-points-summary'); 
+const epicPointsSummary = document.getElementById('epic-points-summary');
 const estimateBtn = document.getElementById('estimate-btn');
-const estimateOutput = document.getElementById('estimate-output');
-const devListContainer = document.getElementById('developer-list-container');
 const refreshDevsBtn = document.getElementById('refresh-devs-btn');
 const skillToggle = document.getElementById('skill-toggle');
 const ganttFilterCheckbox = document.getElementById('gantt-filter-completed');
 
-// --- Global Variables ---
-let JIRA_URL, EPIC_KEY;
-let currentGraphData = null;
-let selectedNodeId = null;
-let simulation = null;
-let zoom = null;
-let devs = [];
-let savedDevStates = {};
-let selectedEpics = []; // { key, summary, project }
-let searchDebounceTimer = null;
-
-// --- Epic Search ---
-function renderSelectedEpics() {
-    const container = document.getElementById('selected-epics');
-    if (!container) return;
-    container.innerHTML = selectedEpics.map(e => `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-xs font-medium">
-            <span class="font-mono">${e.key}</span>
-            <button data-key="${e.key}" class="epic-remove ml-1 text-indigo-400 hover:text-indigo-700 leading-none">&times;</button>
-        </span>
-    `).join('');
-    container.querySelectorAll('.epic-remove').forEach(btn => {
-        btn.addEventListener('click', () => {
-            selectedEpics = selectedEpics.filter(e => e.key !== btn.dataset.key);
-            renderSelectedEpics();
-        });
-    });
-}
-
-function addEpic(epic) {
-    if (selectedEpics.some(e => e.key === epic.key)) return;
-    selectedEpics.push(epic);
-    renderSelectedEpics();
-}
-
-async function searchEpics(q) {
-    const dropdown = document.getElementById('epic-dropdown');
-    if (q.length < 2) { dropdown.classList.add('hidden'); return; }
-
-    dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400">Searching...</div>';
-    dropdown.classList.remove('hidden');
-
-    try {
-        const res = await fetch(`/api/search/epics?q=${encodeURIComponent(q)}`);
-        const { epics } = await res.json();
-
-        if (!epics || epics.length === 0) {
-            dropdown.innerHTML = '<div class="px-3 py-2 text-gray-400">No epics found.</div>';
-            return;
-        }
-
-        dropdown.innerHTML = epics.map(e => {
-            const alreadySelected = selectedEpics.some(s => s.key === e.key);
-            return `
-                <div data-key="${e.key}" data-summary="${e.summary.replace(/"/g, '&quot;')}" data-project="${e.project}"
-                    class="epic-option px-3 py-2 cursor-pointer hover:bg-indigo-50 ${alreadySelected ? 'opacity-40 pointer-events-none' : ''}">
-                    <div class="flex items-baseline gap-2">
-                        <span class="font-mono text-xs text-indigo-600">${e.key}</span>
-                        <span class="text-gray-800 truncate">${e.summary}</span>
-                    </div>
-                    <div class="text-xs text-gray-400">${e.project}</div>
-                </div>
-            `;
-        }).join('');
-
-        dropdown.querySelectorAll('.epic-option').forEach(el => {
-            el.addEventListener('click', () => {
-                addEpic({ key: el.dataset.key, summary: el.dataset.summary, project: el.dataset.project });
-                document.getElementById('epic-search').value = '';
-                dropdown.classList.add('hidden');
-            });
-        });
-    } catch (err) {
-        dropdown.innerHTML = '<div class="px-3 py-2 text-red-400">Search failed.</div>';
-    }
-}
-
-// --- Callback Functions ---
-function handleCurrentGraphData(data) { 
-    currentGraphData = data; 
+// --- Callbacks (passed into graph/api rendering functions) ---
+function handleCurrentGraphData(data) {
+    appState.currentGraphData = data;
     updateEpicStats();
 }
-function handleNodeSelect(nodeId) { 
-    selectedNodeId = nodeId; 
-    updateGraphSelection(currentGraphData, selectedNodeId);
-    updateIssueDetailsPanel(selectedNodeId, currentGraphData, JIRA_URL);
-    updateGanttSelection(selectedNodeId);
+
+function handleNodeSelect(nodeId) {
+    appState.selectedNodeId = nodeId;
+    updateGraphSelection(appState.currentGraphData, appState.selectedNodeId);
+    updateIssueDetailsPanel(appState.selectedNodeId, appState.currentGraphData, appState.jiraUrl);
+    updateGanttSelection(appState.selectedNodeId);
 }
 
-function handleSimulation(sim) { simulation = sim; }
+function handleSimulation(sim) { appState.simulation = sim; }
+function handleZoom(z) { appState.zoom = z; }
 
-function handleZoom(z) { zoom = z; }
-
+// --- Epic Stats Panel ---
 function updateEpicStats() {
-    if (!currentGraphData || !currentGraphData.nodes) {
+    if (!appState.currentGraphData || !appState.currentGraphData.nodes) {
         epicStatsContainer.classList.add('hidden');
         return;
     }
 
-    // --- Overall Progress Calculation ---
-    const allPointedIssues = currentGraphData.nodes.filter(n => n.storyPoints > 0);
+    const allPointedIssues = appState.currentGraphData.nodes.filter(n => n.storyPoints > 0);
     const completedPointedIssues = allPointedIssues.filter(n => n.statusCategory === "Done");
 
     const totalPoints = allPointedIssues.reduce((sum, n) => sum + n.storyPoints, 0);
@@ -141,103 +64,69 @@ function updateEpicStats() {
     epicPercentComplete.textContent = `${percentComplete.toFixed(0)}% Complete`;
     epicPointsSummary.textContent = `${completedPoints} / ${totalPoints} points`;
 
-    // --- Unpointed Issues Calculation ---
     const epicUnpointedSummary = document.getElementById('epic-unpointed-summary');
-    const unpointedCount = currentGraphData.nodes.filter(n => n.storyPoints === null).length;
+    const unpointedCount = appState.currentGraphData.nodes.filter(n => n.storyPoints === null).length;
+    epicUnpointedSummary.textContent = unpointedCount > 0
+        ? `(${unpointedCount} unpointed ${unpointedCount === 1 ? 'issue' : 'issues'})`
+        : '';
 
-    if (unpointedCount > 0) {
-        const plural = unpointedCount === 1 ? 'issue' : 'issues';
-        epicUnpointedSummary.textContent = `(${unpointedCount} unpointed ${plural})`;
-    } else {
-        epicUnpointedSummary.textContent = '';
-    }
-
-    // --- Skill-Based Progress Calculation and Rendering ---
     const epicSkillBreakdown = document.getElementById('epic-skill-breakdown');
-    
-    const sumPointsBySkill = (issues) => {
-        return issues.reduce((acc, issue) => {
-            acc[issue.skill] = (acc[issue.skill] || 0) + issue.storyPoints;
-            return acc;
-        }, {});
-    };
+    const sumPointsBySkill = (issues) => issues.reduce((acc, issue) => {
+        acc[issue.skill] = (acc[issue.skill] || 0) + issue.storyPoints;
+        return acc;
+    }, {});
 
     const totalSkillPoints = sumPointsBySkill(allPointedIssues);
     const completedSkillPoints = sumPointsBySkill(completedPointedIssues);
+    const skillDisplayNames = { frontend: 'Frontend', backend: 'Backend', fullstack: 'Fullstack', unskilled: 'General' };
     const breakdownParts = [];
-    const skillOrder = ['frontend', 'backend', 'fullstack', 'unskilled'];
-    const skillDisplayNames = {
-        frontend: 'Frontend',
-        backend: 'Backend',
-        fullstack: 'Fullstack',
-        unskilled: 'General'
-    };
 
-    skillOrder.forEach(skill => {
+    ['frontend', 'backend', 'fullstack', 'unskilled'].forEach(skill => {
         if (totalSkillPoints[skill] > 0) {
             const completed = completedSkillPoints[skill] || 0;
             const total = totalSkillPoints[skill];
-            const skillPercent = (completed / total) * 100;
-            const displayName = skillDisplayNames[skill] || skill;
-
-            const skillHtml = `
+            breakdownParts.push(`
                 <div class="text-right">
-                    <div class="text-xs font-semibold text-gray-700">${displayName}: ${skillPercent.toFixed(0)}%</div>
+                    <div class="text-xs font-semibold text-gray-700">${skillDisplayNames[skill]}: ${((completed / total) * 100).toFixed(0)}%</div>
                     <div class="text-xs text-gray-500">${completed}/${total} pts</div>
                 </div>
-            `;
-            breakdownParts.push(skillHtml);
+            `);
         }
     });
 
-    if (breakdownParts.length > 0) {
-        epicSkillBreakdown.innerHTML = `<div class="flex justify-end space-x-4">${breakdownParts.join('')}</div>`;
-    } else {
-        epicSkillBreakdown.innerHTML = '';
-    }
+    epicSkillBreakdown.innerHTML = breakdownParts.length > 0
+        ? `<div class="flex justify-end space-x-4">${breakdownParts.join('')}</div>`
+        : '';
 
     epicStatsContainer.classList.remove('hidden');
 }
 
+// --- Issue Details Panel ---
 function updateIssueDetailsPanel(nodeId, graphData, jiraUrl) {
-    const issueDetailsPanel = document.getElementById('issue-details');
-    const detailKey = document.getElementById('detail-key');
-    const detailSummary = document.getElementById('detail-summary');
-    const detailStatusBadge = document.getElementById('detail-status-badge');
-    const detailAssignee = document.getElementById('detail-assignee');
-    const detailPoints = document.getElementById('detail-points');
-    const detailSkill = document.getElementById('detail-skill');
-    const detailLinksList = document.getElementById('detail-links');
-    const detailLink = document.getElementById('detail-link');
-
-    if (!nodeId || !graphData) {
-        issueDetailsPanel.classList.add('hidden');
-        return;
-    }
+    if (!nodeId || !graphData) { issueDetailsPanel.classList.add('hidden'); return; }
 
     const node = graphData.nodes.find(n => n.id === nodeId);
-    if (!node) {
-        issueDetailsPanel.classList.add('hidden');
-        return;
-    }
+    if (!node) { issueDetailsPanel.classList.add('hidden'); return; }
 
-    detailKey.textContent = node.id;
-    detailKey.href = `${jiraUrl}/browse/${node.id}`;
-    detailSummary.textContent = node.summary;
-    detailAssignee.textContent = node.assignee;
-    detailPoints.textContent = node.storyPoints || '0';
-    detailLink.href = `${jiraUrl}/browse/${node.id}`;
+    document.getElementById('detail-key').textContent = node.id;
+    document.getElementById('detail-key').href = `${jiraUrl}/browse/${node.id}`;
+    document.getElementById('detail-summary').textContent = node.summary;
+    document.getElementById('detail-assignee').textContent = node.assignee;
+    document.getElementById('detail-points').textContent = node.storyPoints || '0';
+    document.getElementById('detail-link').href = `${jiraUrl}/browse/${node.id}`;
 
-    detailStatusBadge.textContent = node.status;
-    detailStatusBadge.className = `status-badge ${node.statusCategory.toLowerCase()}`;
-    
-    const skillText = (node.skill === 'unskilled' ? 'General' : node.skill);
-    detailSkill.textContent = skillText.charAt(0).toUpperCase() + skillText.slice(1);
+    const badge = document.getElementById('detail-status-badge');
+    badge.textContent = node.status;
+    badge.className = `status-badge ${node.statusCategory.toLowerCase()}`;
+
+    const skillText = node.skill === 'unskilled' ? 'General' : node.skill;
+    document.getElementById('detail-skill').textContent = skillText.charAt(0).toUpperCase() + skillText.slice(1);
 
     const relatedLinks = graphData.links.filter(link => link.source.id === nodeId || link.target.id === nodeId);
+    const linksList = document.getElementById('detail-links');
 
     if (relatedLinks.length > 0) {
-        detailLinksList.innerHTML = relatedLinks.map(link => {
+        linksList.innerHTML = relatedLinks.map(link => {
             let text = '';
             if (link.source.id === nodeId) {
                 text = `${link.type} <a href="${jiraUrl}/browse/${link.target.id}" target="_blank" class="text-indigo-600 hover:underline">${link.target.id}</a>`;
@@ -245,222 +134,18 @@ function updateIssueDetailsPanel(nodeId, graphData, jiraUrl) {
                 let inwardType = `is related to`;
                 if (link.type.toLowerCase() === 'blocks') inwardType = 'is blocked by';
                 if (link.type.toLowerCase() === 'clones') inwardType = 'is cloned by';
-                
                 text = `${inwardType} <a href="${jiraUrl}/browse/${link.source.id}" target="_blank" class="text-indigo-600 hover:underline">${link.source.id}</a>`;
             }
             return `<li>${text}</li>`;
         }).join('');
     } else {
-        detailLinksList.innerHTML = '<li>None</li>';
+        linksList.innerHTML = '<li>None</li>';
     }
 
     issueDetailsPanel.classList.remove('hidden');
 }
 
-// --- Developer Data Functions ---
-async function fetchDevelopers() {
-    try {
-        const response = await fetch('/api/developers', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-        if (!response.ok) {
-            console.error('Failed to fetch developers:', response.statusText);
-            return { developers: [], isUserAdmin: false };
-        }
-        return await response.json();
-    } catch (error) {
-        console.error('Error fetching developers:', error);
-        return { developers: [], isUserAdmin: false };
-    }
-}
-
-function persistAndRerenderDevList() {
-    devs.forEach(dev => {
-        if (!savedDevStates[dev.accountId]) {
-            savedDevStates[dev.accountId] = { isIncluded: false, allocation: '100', isFe: false, isBe: false };
-        }
-        const state = savedDevStates[dev.accountId];
-
-        const masterCheckbox = document.getElementById(`dev-include-${dev.accountId}`);
-        const allocationInput = document.querySelector(`input[data-allocation-id="${dev.accountId}"]`);
-        if (masterCheckbox) state.isIncluded = masterCheckbox.checked;
-        if (allocationInput) state.allocation = allocationInput.value;
-
-        const feCheckbox = document.getElementById(`fe-skill-${dev.accountId}`);
-        const beCheckbox = document.getElementById(`be-skill-${dev.accountId}`);
-        if (feCheckbox) state.isFe = feCheckbox.checked;
-        if (beCheckbox) state.isBe = beCheckbox.checked;
-    });
-    renderDeveloperList(devs);
-    
-    for (const accountId in savedDevStates) {
-        const state = savedDevStates[accountId];
-        
-        const newMasterCheckbox = document.getElementById(`dev-include-${accountId}`);
-        const newAllocationInput = document.querySelector(`input[data-allocation-id="${accountId}"]`);
-        const newFeCheckbox = document.getElementById(`fe-skill-${accountId}`);
-        const newBeCheckbox = document.getElementById(`be-skill-${accountId}`);
-
-        if (newMasterCheckbox) newMasterCheckbox.checked = state.isIncluded;
-        if (newAllocationInput) newAllocationInput.value = state.allocation;
-        if (newFeCheckbox) newFeCheckbox.checked = state.isFe;
-        if (newBeCheckbox) newBeCheckbox.checked = state.isBe;
-    }
-}
-
-
-function renderDeveloperList(devList) {
-    if (!devListContainer) return;
-    
-    if (devList.length === 0) {
-        devListContainer.innerHTML = `<p class="text-gray-500 text-center">No developer data found.</p>`;
-        return;
-    }
-
-    const adminControls = document.getElementById('admin-controls');
-    const isUserAdmin = adminControls && !adminControls.classList.contains('hidden');
-
-    const useSkillBasedMode = document.getElementById('skill-toggle').checked;
-
-    devListContainer.innerHTML = devList.map(dev => {
-        const hasVelocity = dev.velocity !== undefined; 
-        const showVelocity = isUserAdmin && document.getElementById('velocity-toggle')?.checked;
-        const totalVeloText = showVelocity ? `(${(dev.velocity / 4.3).toFixed(1)} total pts/wk)` : '';
-        
-        
-        // This is the skill selection part, which may be hidden
-        const skillSelectionHtml = useSkillBasedMode ? `
-            <div class="mt-2 pl-8 space-y-1">
-                <p class="text-xs font-semibold text-gray-500">Skills:</p>
-                <div class="flex items-center">
-                    <input type="checkbox" id="fe-skill-${dev.accountId}" data-skill="frontend" data-account-id="${dev.accountId}" class="h-4 w-4 rounded border-gray-300">
-                    <label for="fe-skill-${dev.accountId}" class="ml-2 text-sm">Frontend</label>
-                </div>
-                <div class="flex items-center">
-                    <input type="checkbox" id="be-skill-${dev.accountId}" data-skill="backend" data-account-id="${dev.accountId}" class="h-4 w-4 rounded border-gray-300">
-                    <label for="be-skill-${dev.accountId}" class="ml-2 text-sm">Backend</label>
-                </div>
-            </div>
-        ` : '';
-
-        return `
-            <div class="p-2 rounded-md hover:bg-gray-50 border-b last:border-b-0">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <input type="checkbox" id="dev-include-${dev.accountId}" data-master-id="${dev.accountId}" class="h-5 w-5 rounded border-gray-300">
-                        
-                        <label for="dev-include-${dev.accountId}" class="ml-3 cursor-pointer">
-                            <div class="font-medium text-sm text-gray-800">${dev.name}</div>
-                            ${hasVelocity ? `<div class="text-xs text-gray-500">${totalVeloText.replace(/[()]/g, '')}</div>` : ''}
-                        </label>
-                        </div>
-                    <div class="flex items-center space-x-2">
-                        <input type="number" data-allocation-id="${dev.accountId}" value="100" min="0" max="100" class="w-20 text-right border-gray-300 rounded-md shadow-sm sm:text-sm">
-                        <span class="text-sm text-gray-500">%</span>
-                    </div>
-                </div>
-                ${skillSelectionHtml}
-            </div>
-        `;
-    }).join('');
-}
-
-async function loadDevelopers() {
-    savedDevStates = {};
-    const { developers, isUserAdmin } = await fetchDevelopers();
-    devs = developers; 
-    devs.sort((a, b) => a.name.localeCompare(b.name));
-
-    if (isUserAdmin) {
-        adminControls.classList.remove('hidden');
-        adminControls.classList.add('flex'); 
-    } else {
-        adminControls.classList.add('hidden');
-        adminControls.classList.remove('flex');
-    }
-
-    renderDeveloperList(devs);
-}
-
-function renderEstimationView() {
-    if (!currentGraphData || !currentGraphData.nodes) {
-        estimateOutput.innerHTML = `<span class="text-gray-500">Graph data not loaded.</span>`;
-        return;
-    }
-    
-    const useSkillBasedMode = document.getElementById('skill-toggle').checked;
-    const remainingIssues = currentGraphData.nodes.filter(n => n.statusCategory !== "Done");
-    const unpointedCount = remainingIssues.filter(n => n.storyPoints === null).length;
-
-    let totalSelectedVelocity = 0;
-    devs.forEach(dev => {
-        const isIncluded = document.getElementById(`dev-include-${dev.accountId}`)?.checked;
-        if (!isIncluded || dev.velocity === undefined) return;
-
-        const allocationInput = document.querySelector(`input[data-allocation-id="${dev.accountId}"]`);
-        const allocation = (Number(allocationInput.value) || 100) / 100;
-        totalSelectedVelocity += (dev.velocity / 4.3) * allocation;
-    });
-
-    if (totalSelectedVelocity === 0 && devs.some(d => d.velocity !== undefined)) {
-         estimateOutput.innerHTML = `<span class="text-gray-500">Please include at least one developer in the estimate</span>`;
-         return;
-    }
-
-    // --- SIMPLE MODE CALCULATION ---
-    if (!useSkillBasedMode) {
-        const totalRemainingPoints = remainingIssues.reduce((sum, n) => sum + (n.storyPoints || 0), 0);
-        const weeksLeft = totalSelectedVelocity > 0 ? totalRemainingPoints / totalSelectedVelocity : 0;
-        
-        let output = `Est. Time: <span class="font-black">${weeksLeft.toFixed(1)}</span> weeks (Simple Mode)`;
-        if (unpointedCount > 0) {
-            output += `<div class="text-sm font-normal text-gray-600">— with ${unpointedCount} incomplete, unpointed issues</div>`;
-        }
-        estimateOutput.innerHTML = output;
-        return;
-    }
-
-    // --- SKILL-BASED MODE CALCULATION ---
-    const fePoints = remainingIssues.filter(n => n.skill === 'frontend').reduce((sum, n) => sum + (n.storyPoints || 0), 0);
-    const bePoints = remainingIssues.filter(n => n.skill === 'backend').reduce((sum, n) => sum + (n.storyPoints || 0), 0);
-    const fsPoints = remainingIssues.filter(n => n.skill === 'fullstack').reduce((sum, n) => sum + (n.storyPoints || 0), 0);
-    const generalPoints = remainingIssues.filter(n => n.skill === 'unskilled').reduce((sum, n) => sum + (n.storyPoints || 0), 0);
-
-    let feVeloPool = 0, beVeloPool = 0, fsVeloPool = 0;
-    devs.forEach(dev => {
-        const isIncluded = document.getElementById(`dev-include-${dev.accountId}`)?.checked;
-        if (!isIncluded || dev.velocity === undefined) return;
-
-        const isFe = document.getElementById(`fe-skill-${dev.accountId}`)?.checked;
-        const isBe = document.getElementById(`be-skill-${dev.accountId}`)?.checked;
-        const allocationInput = document.querySelector(`input[data-allocation-id="${dev.accountId}"]`);
-        const allocation = (Number(allocationInput.value) || 100) / 100;
-        const allocatedVelo = (dev.velocity / 4.3) * allocation;
-
-        if (isFe) feVeloPool += allocatedVelo;
-        if (isBe) beVeloPool += allocatedVelo;
-        if (isFe && isBe) fsVeloPool += allocatedVelo;
-    });
-
-    const feTime = feVeloPool > 0 ? fePoints / feVeloPool : (fePoints > 0 ? Infinity : 0);
-    const beTime = beVeloPool > 0 ? bePoints / beVeloPool : (bePoints > 0 ? Infinity : 0);
-    const fsTime = fsVeloPool > 0 ? fsPoints / fsVeloPool : (fsPoints > 0 ? Infinity : 0);
-    const generalTime = totalSelectedVelocity > 0 ? generalPoints / totalSelectedVelocity : 0;
-    const bottleneckWeeks = Math.max(feTime, beTime, fsTime);
-
-    let output = '';
-    if (bottleneckWeeks === Infinity) {
-        output = `<span class="text-red-500">Warning: No developers assigned to required skills.</span>`;
-    } else {
-        const totalTime = bottleneckWeeks + generalTime;
-        output = `Est. Time: <span class="font-black">${totalTime.toFixed(1)}</span> weeks`;
-        output += `<div class="text-sm font-normal mt-1">(FE: ${feTime.toFixed(1)} wks, BE: ${beTime.toFixed(1)} wks, FS: ${fsTime.toFixed(1)} wks, General: ${generalTime.toFixed(1)} wks)</div>`;
-        if (unpointedCount > 0) {
-            output += `<div class="text-sm font-normal text-gray-600">— with ${unpointedCount} incomplete, unpointed issues</div>`;
-        }
-    }
-    estimateOutput.innerHTML = output;
-}
-
-// --- EVENT LISTENERS ---
+// --- Init ---
 document.addEventListener('DOMContentLoaded', async () => {
     const authSection = document.getElementById('auth-section');
     const configForm = document.getElementById('config-form');
@@ -471,7 +156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { authenticated, instanceUrl } = await res.json();
 
         if (authenticated) {
-            JIRA_URL = instanceUrl;
+            appState.jiraUrl = instanceUrl;
             authSection.classList.add('hidden');
             configForm.classList.remove('hidden');
             jiraInstanceLink.textContent = instanceUrl.replace('https://', '');
@@ -491,40 +176,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         authSection.classList.remove('hidden');
         configForm.classList.add('hidden');
     }
+
+    initSearchListeners();
 });
 
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#epic-search') && !e.target.closest('#epic-dropdown')) {
-        document.getElementById('epic-dropdown')?.classList.add('hidden');
-    }
-});
-
-document.getElementById('epic-search')?.addEventListener('input', (e) => {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => searchEpics(e.target.value.trim()), 300);
-});
-
+// --- Visualize ---
 visualizeBtn.addEventListener('click', async () => {
-    EPIC_KEY = selectedEpics.map(e => e.key);
+    let dataSource;
 
-    if (!EPIC_KEY.length) {
-        alert('Please select at least one epic.');
-        return;
+    if (appState.currentMode === 'sprint') {
+        if (!appState.selectedSprint) {
+            alert('Please select a sprint.');
+            return;
+        }
+        dataSource = {
+            mode: 'sprint',
+            sprintId: appState.selectedSprint.id,
+            sprintName: appState.selectedSprint.name,
+            sprintStartDate: appState.selectedSprint.startDate,
+            sprintEndDate: appState.selectedSprint.endDate
+        };
+    } else {
+        if (!appState.selectedEpics.length) {
+            alert('Please select at least one epic.');
+            return;
+        }
+        localStorage.setItem('jiraConfig', JSON.stringify({ epicKeys: appState.selectedEpics }));
+        dataSource = { mode: 'epic', epicKeys: appState.selectedEpics.map(e => e.key) };
     }
 
-    localStorage.setItem('jiraConfig', JSON.stringify({ epicKeys: selectedEpics }));
     await loadDevelopers();
 
     const graph = await fetchDataAndRender(
-        JIRA_URL, EPIC_KEY,
-        handleNodeSelect, selectedNodeId, handleSimulation, simulation,
-        handleZoom, zoom, graphContainer, ganttContainer, estimateContainer,
+        appState.jiraUrl, dataSource,
+        handleNodeSelect, appState.selectedNodeId, handleSimulation, appState.simulation,
+        handleZoom, appState.zoom, graphContainer, ganttContainer, estimateContainer,
         loader, placeholder, issueDetailsPanel, epicHeader, epicTitle,
         epicSummary, resetViewBtn, showGraphBtn, showGanttBtn, showEstimateBtn
     );
     handleCurrentGraphData(graph);
 });
 
+// --- Developer Controls ---
 refreshDevsBtn.addEventListener('click', loadDevelopers);
 estimateBtn.addEventListener('click', renderEstimationView);
 
@@ -533,65 +226,41 @@ skillToggle.addEventListener('change', () => {
     renderEstimationView();
 });
 
-// --- VIEW LOGIC ---
-resetViewBtn.addEventListener('click', () => {
-    if (currentGraphData) {
-        currentGraphData.nodes.forEach(node => {
-            delete node.x;
-            delete node.y;
-            delete node.vx;
-            delete node.vy;
-            delete node.fx;
-            delete node.fy;
-        });
+velocityToggle.addEventListener('change', () => {
+    persistAndRerenderDevList();
+});
 
-        renderGraph(
-            currentGraphData,
-            selectedNodeId,
-            graphContainer,
-            handleNodeSelect,
-            simulation,
-            handleSimulation,
-            zoom,
-            handleZoom
-        );
+// --- View Controls ---
+resetViewBtn.addEventListener('click', () => {
+    if (appState.currentGraphData) {
+        appState.currentGraphData.nodes.forEach(node => {
+            delete node.x; delete node.y;
+            delete node.vx; delete node.vy;
+            delete node.fx; delete node.fy;
+        });
+        renderGraph(appState.currentGraphData, appState.selectedNodeId, graphContainer, handleNodeSelect, appState.simulation, handleSimulation, appState.zoom, handleZoom);
     }
 });
 
 window.addEventListener('resize', () => {
-    if (currentGraphData) {
-        renderGraph(
-            currentGraphData, selectedNodeId, graphContainer, handleNodeSelect,
-            simulation, handleSimulation, zoom, handleZoom
-        );
-        updateGraphSelection(currentGraphData, selectedNodeId);
+    if (appState.currentGraphData) {
+        renderGraph(appState.currentGraphData, appState.selectedNodeId, graphContainer, handleNodeSelect, appState.simulation, handleSimulation, appState.zoom, handleZoom);
+        updateGraphSelection(appState.currentGraphData, appState.selectedNodeId);
     }
 });
 
 showGraphBtn.addEventListener('click', () => {
     setActiveView('graph', graphContainer, ganttContainer, estimateContainer, showGraphBtn, showGanttBtn, showEstimateBtn);
-    if (currentGraphData) {
-        renderGraph(
-            currentGraphData,
-            selectedNodeId,
-            graphContainer,
-            handleNodeSelect,
-            simulation,
-            handleSimulation,
-            zoom,
-            handleZoom
-        );
-        updateGraphSelection(currentGraphData, selectedNodeId);
+    if (appState.currentGraphData) {
+        renderGraph(appState.currentGraphData, appState.selectedNodeId, graphContainer, handleNodeSelect, appState.simulation, handleSimulation, appState.zoom, handleZoom);
+        updateGraphSelection(appState.currentGraphData, appState.selectedNodeId);
     }
 });
 
 showGanttBtn.addEventListener('click', () => {
     setActiveView('gantt', graphContainer, ganttContainer, estimateContainer, showGraphBtn, showGanttBtn, showEstimateBtn);
-    if (currentGraphData) {
-        renderGanttChart(
-            currentGraphData, JIRA_URL, handleNodeSelect,
-            selectedNodeId
-        );
+    if (appState.currentGraphData) {
+        renderGanttChart(appState.currentGraphData, appState.jiraUrl, handleNodeSelect, appState.selectedNodeId);
     }
 });
 
@@ -600,17 +269,8 @@ showEstimateBtn.addEventListener('click', () => {
     renderEstimationView();
 });
 
-velocityToggle.addEventListener('change', () => {
-    persistAndRerenderDevList();
-});
-
 ganttFilterCheckbox.addEventListener('change', () => {
-    if (currentGraphData && !ganttContainer.classList.contains('hidden')) {
-        renderGanttChart(
-            currentGraphData,
-            JIRA_URL,
-            handleNodeSelect,
-            selectedNodeId
-        );
+    if (appState.currentGraphData && !ganttContainer.classList.contains('hidden')) {
+        renderGanttChart(appState.currentGraphData, appState.jiraUrl, handleNodeSelect, appState.selectedNodeId);
     }
 });
