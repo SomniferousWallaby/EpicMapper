@@ -62,8 +62,7 @@ app.get('/auth/jira', (req, res) => {
         `scope=${encodeURIComponent(SCOPES)}&` +
         `redirect_uri=${encodeURIComponent(JIRA_REDIRECT_URI)}&` +
         `state=${req.session.oauthState}&` +
-        `response_type=code&` +
-        `prompt=consent`;
+        `response_type=code`;
 
     req.session.save((err) => {
         if (err) return res.status(500).send('Session save failed');
@@ -396,6 +395,119 @@ app.post('/api/developers', requireAuth, async (req, res) => {
     } catch (error) {
         console.error("Server error:", error);
         res.status(500).json({ error: "An internal server error occurred." });
+    }
+});
+
+// GET /api/search/projects?q=
+// Used to find a project to then discover its sprints
+app.get('/api/search/projects', requireAuth, async (req, res) => {
+    const q = (req.query.q || '').trim();
+    if (q.length < 2) return res.json({ projects: [] });
+
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
+    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    try {
+        const url = `${jiraUrl}/rest/api/3/project/search?query=${encodeURIComponent(q)}&maxResults=20`;
+        const response = await fetch(url, { headers });
+        if (!response.ok) return res.status(response.status).json({ error: 'Project search failed' });
+        const data = await response.json();
+        const projects = (data.values || []).map(p => ({ key: p.key, name: p.name }));
+        res.json({ projects });
+    } catch (err) {
+        res.status(500).json({ error: 'Project search failed' });
+    }
+});
+
+// GET /api/search/sprints?projectKey=
+// Discovers active/future sprints for a project via JQL
+app.get('/api/search/sprints', requireAuth, async (req, res) => {
+    const { projectKey } = req.query;
+    if (!projectKey) return res.status(400).json({ error: 'projectKey is required' });
+
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
+
+    try {
+        // Discover the sprint custom field ID
+        const fields = await fetch(`${jiraUrl}/rest/api/3/field`, { headers }).then(r => r.json());
+        const sprintField = fields.find(f => f.name === 'Sprint' && f.custom);
+        if (!sprintField) return res.json({ sprints: [] });
+
+        // JQL: issues in this project that are in an active or future sprint
+        const jql = `project = "${projectKey}" AND sprint in (openSprints(), futureSprints()) ORDER BY created DESC`;
+        const searchRes = await fetch(`${jiraUrl}/rest/api/3/search/jql`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ jql, fields: [sprintField.id], maxResults: 50 })
+        });
+        if (!searchRes.ok) return res.status(searchRes.status).json({ error: 'Sprint discovery failed' });
+        const data = await searchRes.json();
+
+        // Extract unique sprints from sprint field values across all returned issues
+        const seen = new Set();
+        const sprints = [];
+        for (const issue of (data.issues || [])) {
+            const sprintValues = issue.fields[sprintField.id] || [];
+            for (const s of sprintValues) {
+                if (!seen.has(s.id)) {
+                    seen.add(s.id);
+                    sprints.push({
+                        id: s.id,
+                        name: s.name,
+                        state: s.state,
+                        startDate: s.startDate || null,
+                        endDate: s.endDate || null
+                    });
+                }
+            }
+        }
+
+        // Sort: active first, then future
+        sprints.sort((a, b) => {
+            if (a.state === 'active' && b.state !== 'active') return -1;
+            if (b.state === 'active' && a.state !== 'active') return 1;
+            return 0;
+        });
+
+        res.json({ sprints });
+    } catch (err) {
+        console.error('Sprint search error:', err);
+        res.status(500).json({ error: 'Sprint search failed' });
+    }
+});
+
+// POST /api/sprint
+// Fetches issues in a sprint via JQL
+app.post('/api/sprint', requireAuth, async (req, res) => {
+    const { sprintId } = req.body;
+    if (!sprintId) return res.status(400).json({ error: 'Missing sprintId.' });
+
+    const token = await getValidToken(req.session);
+    const jiraUrl = req.session.jira.apiUrl;
+    const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    };
+
+    try {
+        const [storyPointFieldId, skillFieldId] = await getStoryPointAndSkillFieldId(jiraUrl, headers);
+        const jql = `sprint = ${sprintId} AND issuetype not in (Epic)`;
+        const result = await executeJiraSearch(jql, storyPointFieldId, skillFieldId, jiraUrl, headers);
+
+        if (!result.ok) {
+            return res.status(result.status).json({ error: 'Sprint issue fetch failed', details: result.data });
+        }
+        res.json({ issues: result.data.issues || [], storyPointFieldId, skillFieldId });
+    } catch (err) {
+        console.error('Sprint proxy error:', err);
+        res.status(500).json({ error: 'An unexpected error occurred' });
     }
 });
 

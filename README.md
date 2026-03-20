@@ -7,6 +7,8 @@ Epic Mapper is a web-based tool for visualizing Jira epic dependencies. It provi
 - **Interactive Dependency Graph** — visualize how stories, tasks, and bugs are interconnected
 - **Gantt Chart View** — see the critical path and project timeline based on blocking dependencies
 - **Resource Planning** — calculate project estimates using developer velocity and skill-based allocations
+- **Epic Mode** — select one or more epics to visualize their full issue scope and dependencies
+- **Sprint Mode** — select a project and sprint to visualize sprint scope and assess team capacity
 - **Jira OAuth Login** — authenticates via Atlassian OAuth 2.0; no API tokens needed
 - **Role-Based Views** — velocity data is hidden from non-admin users (configured via `ADMIN_EMAILS`)
 
@@ -14,8 +16,15 @@ Epic Mapper is a web-based tool for visualizing Jira epic dependencies. It provi
 
 ## Architecture
 
-- **Backend**: Node.js + Express, acts as a proxy to the Jira API
+- **Backend**: Node.js + Express, acts as a proxy to the Jira API (`server.js`)
 - **Frontend**: Vanilla JS + D3.js, served as static files from `public/`
+  - `main.js` — app orchestration, event listeners, stats panels
+  - `search.js` — epic/project/sprint search UI and mode toggle
+  - `developers.js` — developer loading, list rendering, estimation logic
+  - `api.js` — Jira data fetching and issue normalization
+  - `graph.js` — D3 force-directed dependency graph
+  - `gantt.js` — critical path Gantt chart
+  - `store.js` — shared client-side state
 - **Auth**: Atlassian OAuth 2.0 (3-legged), tokens stored server-side in the session
 - **Sessions**: In-memory by default; Redis supported by setting `REDIS_URL`
 
@@ -32,7 +41,7 @@ Epic Mapper is a web-based tool for visualizing Jira epic dependencies. It provi
 
 1. Go to [developer.atlassian.com](https://developer.atlassian.com/console/myapps/) and create a new app
 2. Under **Authorization**, add an OAuth 2.0 callback URL: `http://localhost:8123/auth/jira/callback`
-3. Under **Permissions**, add `read:jira-work` and `read:jira-user`
+3. Under **Permissions → Jira API**, enable the classic scopes `read:jira-work` and `read:jira-user`
 4. Note your **Client ID** and **Client Secret**
 
 ### 2. Configure Environment

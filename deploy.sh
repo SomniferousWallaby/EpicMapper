@@ -16,7 +16,7 @@ gcloud run deploy "$SERVICE" \
   --project "$PROJECT" \
   --allow-unauthenticated \
   --max-instances 1 \
-  --set-env-vars "NODE_ENV=production,ADMIN_EMAILS=${ADMIN_EMAILS},CORS_ORIGIN=${SERVICE_URL}" \
+  --set-env-vars "^|^NODE_ENV=production|ADMIN_EMAILS=${ADMIN_EMAILS}|CORS_ORIGIN=${SERVICE_URL}" \
   --set-secrets SESSION_SECRET=SESSION_SECRET:latest,JIRA_CLIENT_ID=JIRA_CLIENT_ID:latest,JIRA_CLIENT_SECRET=JIRA_CLIENT_SECRET:latest,JIRA_REDIRECT_URI=JIRA_REDIRECT_URI:latest
 
 echo "Deployed: ${SERVICE_URL}"
