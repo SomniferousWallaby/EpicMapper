@@ -7,6 +7,7 @@ const session = require('express-session');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // required for secure cookies behind Cloud Run's load balancer
 const PORT = process.env.PORT || 8123;
 const ADMIN_EMAILS = process.env.ADMIN_EMAILS;
 
@@ -53,7 +54,7 @@ function requireAuth(req, res, next) {
 
 // --- Auth Routes ---
 app.get('/auth/jira', (req, res) => {
-    req.session.oauthState = req.sessionID; // writing to session forces cookie to be set
+    req.session.oauthState = req.sessionID;
 
     const authorizationUrl = `https://auth.atlassian.com/authorize?` +
         `audience=api.atlassian.com&` +
@@ -64,7 +65,10 @@ app.get('/auth/jira', (req, res) => {
         `response_type=code&` +
         `prompt=consent`;
 
-    res.redirect(authorizationUrl);
+    req.session.save((err) => {
+        if (err) return res.status(500).send('Session save failed');
+        res.redirect(authorizationUrl);
+    });
 });
 
 app.get('/auth/jira/callback', async (req, res) => {
