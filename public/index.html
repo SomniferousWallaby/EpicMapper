@@ -12,42 +12,53 @@
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <div class="flex flex-col md:flex-row h-screen">
+<div class="flex flex-col md:flex-row h-screen">
 
-        <!-- ===== Left Panel: Configuration and Issue Details ===== -->
-        <div class="w-full md:w-96 bg-white border-r border-gray-200 p-6 flex flex-col space-y-6 overflow-y-auto h-full">
-        <header class="mb-6 flex items-center space-x-3"> <img src="/assets/logo.png" alt="Epic Mapper Logo" class="h-10 w-15 flex-shrink-0"> <div>
-                <h1 class="text-3xl font-bold text-gray-900">Epic Mapper</h1> <p class="text-sm text-gray-500">An interactive dependency visualizer and planning tool for Jira</p> </div>
-        </header>
+    <!-- ===== Left Panel ===== -->
+    <div class="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0">
 
-            <!-- Auth Section (shown when not logged in) -->
-            <div id="auth-section" class="hidden space-y-4">
+        <!-- Header -->
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+            <img src="/assets/logo.png" alt="Epic Mapper Logo" class="h-8 flex-shrink-0">
+            <div>
+                <h1 class="text-lg font-bold text-gray-900 leading-tight">Epic Mapper</h1>
+                <p class="text-xs text-gray-400 leading-tight">Dependency visualizer &amp; sprint planner</p>
+            </div>
+        </div>
+
+        <!-- Scrollable content -->
+        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5 pb-10">
+
+            <!-- Auth Section -->
+            <div id="auth-section" class="hidden space-y-3">
                 <p class="text-sm text-gray-600">Connect your Jira account to get started.</p>
-                <a href="/auth/jira" class="w-full flex items-center justify-center bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-150 ease-in-out">
+                <a href="/auth/jira" class="w-full flex items-center justify-center bg-indigo-600 text-white text-sm font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">
                     Login with Jira
                 </a>
             </div>
 
-            <!-- Configuration Form (shown when logged in) -->
+            <!-- Configuration Form -->
             <div id="config-form" class="hidden space-y-4">
-                <div id="jira-account-info" class="flex items-center justify-between text-sm">
-                    <span class="text-gray-500">Connected to: <a id="jira-instance-link" href="#" target="_blank" class="text-indigo-600 hover:underline font-medium"></a></span>
-                    <a href="/auth/logout" class="text-red-500 hover:underline text-xs">Logout</a>
+
+                <!-- Account info -->
+                <div id="jira-account-info" class="flex items-center justify-between text-xs text-gray-400">
+                    <span>Connected to: <a id="jira-instance-link" href="#" target="_blank" class="text-indigo-600 hover:underline font-medium"></a></span>
+                    <a href="/auth/logout" class="text-red-400 hover:text-red-600 transition-colors">Logout</a>
                 </div>
 
                 <!-- Mode Toggle -->
-                <div class="flex rounded-md border border-gray-200 overflow-hidden">
-                    <button id="mode-epic-btn" class="flex-1 py-1.5 text-sm font-medium bg-indigo-600 text-white transition-colors">Epic</button>
-                    <button id="mode-sprint-btn" class="flex-1 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">Sprint</button>
+                <div class="flex rounded-md border border-gray-200 overflow-hidden text-sm">
+                    <button id="mode-epic-btn" class="flex-1 py-2 font-medium bg-indigo-600 text-white transition-colors">Epic</button>
+                    <button id="mode-sprint-btn" class="flex-1 py-2 font-medium text-gray-600 hover:bg-gray-50 transition-colors">Sprint</button>
                 </div>
 
                 <!-- Epic Section -->
-                <div id="epic-section">
+                <div id="epic-section" class="space-y-1.5">
                     <label class="block text-sm font-medium text-gray-700">Epics</label>
-                    <div id="selected-epics" class="flex flex-wrap gap-1 mt-1"></div>
-                    <div class="relative mt-1">
+                    <div id="selected-epics" class="flex flex-wrap gap-1 empty:hidden"></div>
+                    <div class="relative">
                         <input type="text" id="epic-search" autocomplete="off"
-                            class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             placeholder="Search epics...">
                         <div id="epic-dropdown" class="hidden absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-52 overflow-y-auto text-sm"></div>
                     </div>
@@ -55,184 +66,198 @@
 
                 <!-- Sprint Section -->
                 <div id="sprint-section" class="hidden space-y-3">
-                    <div>
+                    <div class="space-y-1.5">
                         <label class="block text-sm font-medium text-gray-700">Project</label>
-                        <div class="relative mt-1">
+                        <div class="relative">
                             <input type="text" id="board-search" autocomplete="off"
-                                class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 placeholder="Search projects...">
                             <div id="board-dropdown" class="hidden absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-52 overflow-y-auto text-sm"></div>
                         </div>
                     </div>
-                    <div>
+                    <div class="space-y-1.5">
                         <label class="block text-sm font-medium text-gray-700">Sprint</label>
                         <select id="sprint-select" disabled
-                            class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-500">
-                            <option value="">Select a board first...</option>
+                            class="block w-full px-3 py-2 bg-white border border-gray-300 rounded-md text-sm text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <option value="">Select a project first...</option>
                         </select>
                     </div>
                 </div>
 
-                <button id="visualize-btn" class="w-full bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                <button id="visualize-btn" class="w-full bg-indigo-600 text-white text-sm font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
                     Visualize
                 </button>
             </div>
-            
+
             <!-- CORS Warning -->
-            <div id="cors-warning" class="hidden p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md">
-                <p class="font-bold">CORS Issue Detected</p>
-                <p class="text-sm">Could not connect to Jira. This is likely a CORS issue. Please use a browser extension to bypass CORS for this to work in the browser, or run this tool through a server-side proxy.</p>
+            <div id="cors-warning" class="hidden p-3 bg-yellow-50 border border-yellow-300 rounded-md text-sm text-yellow-800">
+                <p class="font-semibold">Connection error</p>
+                <p class="mt-0.5 text-xs text-yellow-700">Could not connect to Jira. Check your network and try again.</p>
             </div>
 
             <!-- Selected Issue Details -->
-            <div id="issue-details" class="hidden pt-6 border-t border-gray-200">
-                <h2 class="text-lg font-semibold text-gray-800">Issue Details</h2>
-                <div class="mt-4 space-y-3">
-                    <p><strong class="w-24 inline-block">Key:</strong> <a id="detail-key" class="font-mono text-indigo-600 hover:underline" target="_blank"></a></p>
-                    <p><strong class="w-24 inline-block">Summary:</strong> <span id="detail-summary"></span></p>
-                    <p><strong class="w-24 inline-block">Status:</strong> <span id="detail-status-badge" class="px-2 py-1 text-xs font-semibold rounded-full"></span></p>
-                    <p><strong class="w-24 inline-block">Assignee:</strong> <span id="detail-assignee"></span></p>
-                    <p><strong class="w-24 inline-block">Story Points:</strong> <span id="detail-points"></span></p>
-                    <p><strong class="w-24 inline-block">Skill:</strong> <span id="detail-skill"></span></p>
-                    <div>
-                        <strong class="w-24 inline-block align-top">Links:</strong>
-                        <ul id="detail-links" class="inline-block list-disc list-inside space-y-1 text-sm">
-                            </ul>
-                    </div>
-                    <a id="detail-link" href="#" target="_blank" class="text-indigo-600 hover:underline inline-flex items-center pt-2">
-                        View in Jira
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                    </a>
-                </div>
+            <div id="issue-details" class="hidden pt-4 border-t border-gray-100">
+                <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Issue Details</h2>
+                <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+                    <dt class="font-medium text-gray-400 pt-px">Key</dt>
+                    <dd><a id="detail-key" class="font-mono text-indigo-600 hover:underline text-xs" target="_blank"></a></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px">Summary</dt>
+                    <dd><span id="detail-summary" class="text-gray-800 leading-snug"></span></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px">Status</dt>
+                    <dd><span id="detail-status-badge" class="status-badge px-2 py-0.5 text-xs font-semibold rounded-full"></span></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px">Assignee</dt>
+                    <dd><span id="detail-assignee" class="text-gray-700"></span></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px">Points</dt>
+                    <dd><span id="detail-points" class="text-gray-700 font-mono"></span></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px">Skill</dt>
+                    <dd><span id="detail-skill" class="text-gray-700"></span></dd>
+
+                    <dt class="font-medium text-gray-400 pt-px align-top mt-0.5">Links</dt>
+                    <dd><ul id="detail-links" class="space-y-1 text-xs text-gray-700 list-none"></ul></dd>
+                </dl>
+                <a id="detail-link" href="#" target="_blank" class="mt-3 inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline">
+                    View in Jira
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                </a>
             </div>
 
-        </div>
-
-        <!-- ===== Right Panel: Graph/Gantt Visualization ===== -->
-        <div class="flex-1 flex flex-col bg-gray-100">
-            <!-- Main content area for the right panel -->
-            <div class="p-4 flex flex-col flex-1 min-h-0">
-
-                <!-- Epic Header -->
-                <div id="epic-header" class="hidden pb-4 border-b border-gray-200 mb-4 flex justify-between items-center">
-                    <div>
-                        <h2 id="epic-title" class="text-2xl font-bold text-gray-800"></h2>
-                        <p id="epic-summary" class="text-gray-600"></p>
-                    </div>
-
-                    <!-- View Switcher -->
-                    <div class="flex justify-center mb-4">
-                        <div class="inline-flex rounded-md shadow-sm">
-                            <button id="show-graph-btn" class="px-4 py-2 text-sm font-medium bg-white text-gray-900 border border-gray-200 rounded-l-lg hover:bg-gray-100">
-                                Graph View
-                            </button>
-                            <button id="show-gantt-btn" class="px-4 py-2 text-sm font-medium bg-white text-gray-900 border-t border-b border-gray-200 hover:bg-gray-100">
-                                Gantt View
-                            </button>
-                            <button id="show-estimate-btn" class="px-4 py-2 text-sm font-medium bg-white text-gray-900 border border-gray-200 rounded-r-lg hover:bg-gray-100">
-                                Resource Planning
-                            </button>
-                        </div>
-                    </div>
-
-                    <div id="epic-stats-container" class="text-right flex-shrink-0 ml-4">
-                        <p id="epic-percent-complete" class="text-2xl font-bold text-green-600"></p>
-                        <p id="epic-points-summary" class="text-sm text-gray-500"></p>
-                        <p id="epic-unpointed-summary" class="text-xs text-gray-500"></p>
-                        <div id="epic-skill-breakdown" class="mt-2"></div>
-                    </div>
-                </div>
-
-                <!-- Graph Container-->
-                <div id="graph-container" class="flex-1 relative flex items-center justify-center pb-22">
-                     
-                    <!-- Reset view button-->
-                    <button id="reset-view-btn" title="Reset Layout" class="hidden absolute top-2 right-2 z-10 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4l1.5 1.5M20 20l-1.5-1.5" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </button>
-
-                    <!-- SVG, Loader, and Placeholder -->
-                    <svg id="graph-svg" class="w-full h-full"></svg>
-                    
-                    <div id="loader" class="hidden absolute inset-0 bg-gray-100 bg-opacity-75 flex flex-col items-center justify-center">
-                        <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="mt-4 text-lg text-gray-700 font-semibold">Fetching Jira Issues...</p>
-                        <p class="text-sm text-gray-500">This may take a moment</p>
-                    </div>
-
-                    <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-500">
-                        <p class="text-xl font-medium">Your dependency graph will appear here</p>
-                        <p class="mt-2">Fill in your Jira details and click "Visualize"</p>
-                    </div>
-                </div>
-
-                <!-- Gant Chart Container -->
-                <div id="gantt-container" class="hidden flex flex-col flex-1 p-4 min-h-0">
-                    <div id="gantt-controls" class="flex justify-end items-center mb-4 pr-2">
-                        <div class="flex items-center space-x-3">
-                            <label for="gantt-filter-completed" class="text-sm font-medium text-gray-900 cursor-pointer">Hide Completed Work</label>
-                            <div class="relative inline-flex items-center">
-                                <input type="checkbox" id="gantt-filter-completed" class="sr-only peer">
-                                <label for="gantt-filter-completed" class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="gantt-header"></div>
-                    <div id="gantt-rows" class="flex-1 overflow-y-auto pb-22"></div>
-                </div>
-
-                <!-- Estimate Container -->
-                <div id="estimate-container" class="hidden flex-1 flex flex-col items-center p-8 space-y-6">
-                    <div class="p-6 bg-white border rounded-lg shadow-sm w-full max-w-5xl flex flex-col space-y-4">
-
-                        <div class="w-full flex justify-between items-center mb-2"> 
-                            <h3 class="text-lg font-medium text-gray-700">Select & Allocate Developers</h3>
-
-                            <div class="flex items-center space-x-6 pr-2"> 
-                                <div id="admin-controls" class="hidden items-center space-x-3">
-                                    <label for="velocity-toggle" class="text-sm font-medium text-gray-900 cursor-pointer">Show Velocity</label>
-                                    <div class="relative inline-flex items-center">
-                                        <input type="checkbox" id="velocity-toggle" class="sr-only peer" checked>
-                                        <label for="velocity-toggle" class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
-                                    </div>
-                                </div>
-                                <div class="flex items-center space-x-3">
-                                    <label for="skill-toggle" class="text-sm font-medium text-gray-900 cursor-pointer">Skill-based Estimation</label>
-                                    <div class="relative inline-flex items-center">
-                                        <input type="checkbox" id="skill-toggle" class="sr-only peer" checked>
-                                        <label for="skill-toggle" class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div id="developer-list-container" class="w-full p-4 border rounded-md flex-1 overflow-y-auto md:grid md:grid-cols-2 xl:grid-cols-3 md:gap-x-8"></div>
-                        <div class="flex items-center space-x-4">
-                            <button id="refresh-devs-btn" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-md hover:bg-gray-300">Refresh List</button>
-                            <button id="estimate-btn" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700">Calculate Estimate</button>
-                            <div id="estimate-output" class="flex-1 text-2xl font-bold text-indigo-700 text-center min-h-[3rem]"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 
-    <script src="js/main.js" type="module"></script>
+    <!-- ===== Right Panel ===== -->
+    <div class="flex-1 flex flex-col min-w-0 bg-gray-50">
 
-    <footer class="fixed bottom-0 left-0 w-full text-center text-xs text-gray-400 py-2 bg-gray-50 border-t border-gray-100">
-        <a href="/privacy.html" class="hover:underline">Privacy Policy</a>
-        <span class="mx-2">&middot;</span>
-        <a href="/terms.html" class="hover:underline">Terms of Service</a>
-        <span class="mx-2">&middot;</span>
-        <a href="https://github.com/SomniferousWallaby/EpicMapper/issues" target="_blank" rel="noopener" class="hover:underline">Support</a>
-    </footer>
+        <!-- Epic/Sprint Header (shown after data loads) -->
+        <div id="epic-header" class="hidden bg-white border-b border-gray-200 flex-shrink-0">
+
+            <!-- Row 1: Title + Stats -->
+            <div class="flex items-start justify-between px-5 pt-4 pb-2">
+                <div class="min-w-0 flex-1 pr-6">
+                    <h2 id="epic-title" class="text-lg font-bold text-gray-900 truncate"></h2>
+                    <div id="epic-summary" class="text-sm text-gray-500 mt-0.5"></div>
+                </div>
+                <div id="epic-stats-container" class="hidden text-right flex-shrink-0">
+                    <p id="epic-percent-complete" class="text-2xl font-bold text-green-600 leading-none"></p>
+                    <p id="epic-points-summary" class="text-xs text-gray-500 mt-0.5"></p>
+                    <p id="epic-unpointed-summary" class="text-xs text-gray-400"></p>
+                    <div id="epic-skill-breakdown" class="mt-2"></div>
+                </div>
+            </div>
+
+            <!-- Row 2: View Switcher + Controls -->
+            <div class="flex items-center justify-between px-5 pb-3">
+                <div class="inline-flex rounded-md border border-gray-200 overflow-hidden text-sm shadow-sm">
+                    <button id="show-graph-btn" class="px-4 py-1.5 font-medium bg-indigo-600 text-white border-indigo-600 transition-colors">Graph</button>
+                    <button id="show-gantt-btn" class="px-4 py-1.5 font-medium bg-white text-gray-900 border-gray-200 hover:bg-gray-50 transition-colors">Gantt</button>
+                    <button id="show-estimate-btn" class="px-4 py-1.5 font-medium bg-white text-gray-900 border-gray-200 hover:bg-gray-50 transition-colors">Resources</button>
+                </div>
+                <button id="reset-view-btn" title="Reset Layout" class="hidden p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4l1.5 1.5M20 20l-1.5-1.5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Graph Container -->
+        <div id="graph-container" class="flex-1 relative flex items-center justify-center min-h-0">
+            <svg id="graph-svg" class="w-full h-full"></svg>
+
+            <div id="loader" class="hidden absolute inset-0 bg-gray-50 bg-opacity-80 flex flex-col items-center justify-center">
+                <svg class="animate-spin h-10 w-10 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-3 text-sm font-semibold text-gray-700">Fetching Jira issues…</p>
+                <p class="text-xs text-gray-400 mt-1">This may take a moment</p>
+            </div>
+
+            <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-center text-gray-400 select-none">
+                <svg class="h-12 w-12 mb-3 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+                <p class="text-base font-medium text-gray-500">Select epics or a sprint and click Visualize</p>
+                <p class="text-sm mt-1">Your dependency graph will appear here</p>
+            </div>
+        </div>
+
+        <!-- Gantt Chart Container -->
+        <div id="gantt-container" class="hidden flex flex-col flex-1 min-h-0">
+            <div id="gantt-controls" class="flex justify-end items-center px-5 py-2 border-b border-gray-200 bg-white">
+                <label for="gantt-filter-completed" class="text-xs text-gray-600 cursor-pointer mr-2">Hide completed</label>
+                <div class="relative inline-flex items-center">
+                    <input type="checkbox" id="gantt-filter-completed" class="sr-only peer">
+                    <label for="gantt-filter-completed" class="w-9 h-5 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
+                </div>
+            </div>
+            <!-- gantt-header must NOT be inside an overflow container -->
+            <div class="px-4 pt-3">
+                <div id="gantt-header"></div>
+            </div>
+            <div id="gantt-rows" class="flex-1 overflow-y-auto px-4 pb-8"></div>
+        </div>
+
+        <!-- Resource Planning Container -->
+        <div id="estimate-container" class="hidden flex-1 overflow-y-auto p-5 pb-10">
+            <div class="max-w-4xl mx-auto space-y-4">
+
+                <!-- Header row -->
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">Team Capacity</h3>
+                    <div class="flex items-center gap-5">
+                        <div id="admin-controls" class="hidden items-center gap-2">
+                            <label for="velocity-toggle" class="text-xs text-gray-600 cursor-pointer">Show velocity</label>
+                            <div class="relative inline-flex items-center">
+                                <input type="checkbox" id="velocity-toggle" class="sr-only peer" checked>
+                                <label for="velocity-toggle" class="w-9 h-5 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label for="skill-toggle" class="text-xs text-gray-600 cursor-pointer">Skill-based estimation</label>
+                            <div class="relative inline-flex items-center">
+                                <input type="checkbox" id="skill-toggle" class="sr-only peer" checked>
+                                <label for="skill-toggle" class="w-9 h-5 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Developer list card -->
+                <div class="bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div id="developer-list-container" class="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 divide-y md:divide-y-0"></div>
+                </div>
+
+                <!-- Actions row -->
+                <div class="flex items-center gap-3">
+                    <button id="refresh-devs-btn" class="px-3 py-1.5 bg-white text-gray-700 text-sm font-medium rounded-md border border-gray-300 hover:bg-gray-50 transition-colors">Refresh list</button>
+                    <button id="estimate-btn" class="px-4 py-1.5 bg-indigo-600 text-white text-sm font-semibold rounded-md hover:bg-indigo-700 transition-colors">Calculate estimate</button>
+                </div>
+
+                <!-- Estimate output -->
+                <div id="estimate-output" class="text-xl font-bold text-indigo-700 min-h-[2.5rem]"></div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script src="js/main.js" type="module"></script>
+
+<footer class="fixed bottom-0 left-0 w-full text-center text-xs text-gray-400 py-2 bg-white border-t border-gray-100">
+    <a href="/privacy.html" class="hover:text-gray-600 transition-colors">Privacy Policy</a>
+    <span class="mx-2 text-gray-300">&middot;</span>
+    <a href="/terms.html" class="hover:text-gray-600 transition-colors">Terms of Service</a>
+    <span class="mx-2 text-gray-300">&middot;</span>
+    <a href="https://github.com/SomniferousWallaby/EpicMapper/issues" target="_blank" rel="noopener" class="hover:text-gray-600 transition-colors">Support</a>
+</footer>
 
 </body>
 </html>

@@ -169,18 +169,18 @@ export function renderGanttChart(
         else if (scaleEnd > 10) increment = 2;
         for (let i = increment; i <= scaleEnd; i += increment) {
             const position = (i / scaleEnd) * 100;
-            headerLevelsHTML += `<div class="absolute h-full top-0" style="left: ${position}%;"><div class="w-px h-2 bg-gray-300"></div><div class="absolute -top-4 text-xs text-gray-500" style="transform: translateX(-50%);">${i}</div></div>`;
+            headerLevelsHTML += `<div class="absolute bottom-0 flex flex-col items-center" style="left: ${position}%; transform: translateX(-50%);"><span class="text-xs text-gray-500 mb-1">${i}</span><div class="w-px h-2 bg-gray-300"></div></div>`;
         }
     }
     ganttHeaderContainer.innerHTML = `
-        <div class="flex items-center border-b-2 pb-2 mb-4 text-sm">
-            <div class="w-1/3 flex items-center space-x-2 pr-2"> 
-                <div class="font-bold text-left w-24 flex-shrink-0">Epic</div> 
-                <div class="font-bold text-left w-24 flex-shrink-0">Issue</div> 
-                <div class="font-bold text-left flex-grow">Description</div> 
+        <div class="flex items-end border-b-2 pb-0 mb-4 text-sm">
+            <div class="w-1/3 flex items-center space-x-2 pr-2 pb-2">
+                <div class="font-bold text-left w-24 flex-shrink-0">Epic</div>
+                <div class="font-bold text-left w-24 flex-shrink-0">Issue</div>
+                <div class="font-bold text-left flex-grow">Description</div>
             </div>
-            <div class="w-2/3 relative h-1">
-                <div class="absolute -top-4 left-0 text-xs text-gray-500">0</div>
+            <div class="w-2/3 relative h-8">
+                <div class="absolute bottom-0 left-0 flex flex-col items-center"><span class="text-xs text-gray-500 mb-1">0</span><div class="w-px h-2 bg-gray-300"></div></div>
                 ${headerLevelsHTML}
             </div>
         </div>
